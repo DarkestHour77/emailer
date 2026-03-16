@@ -29,7 +29,7 @@ router.post('/', upload.array('files', 10), async (req: Request, res: Response) 
     const attachments = [];
     for (const file of files) {
       const [id] = await db('attachments').insert({
-        email_id: 0, // Will be linked when email is sent
+        email_id: null, // Will be linked when email is sent
         filename: file.originalname,
         path: file.path,
         mime_type: file.mimetype,

@@ -42,9 +42,9 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     // Update timer
     const delayMs = scheduledTime.getTime() - Date.now();
-    scheduleTimer(parseInt(req.params.id, 10), delayMs);
+    scheduleTimer(parseInt(req.params.id as string, 10), delayMs);
 
-    res.json({ id: parseInt(req.params.id, 10), scheduledAt });
+    res.json({ id: parseInt(req.params.id as string, 10), scheduledAt });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -57,7 +57,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     if (!email) return res.status(404).json({ error: 'Scheduled email not found' });
 
     await db('emails').where({ id: req.params.id }).update({ status: 'cancelled' });
-    cancelTimer(parseInt(req.params.id, 10));
+    cancelTimer(parseInt(req.params.id as string, 10));
 
     res.status(204).send();
   } catch (err) {

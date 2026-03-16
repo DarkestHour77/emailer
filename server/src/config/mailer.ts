@@ -28,7 +28,7 @@ async function getAccessToken(): Promise<string> {
     throw new Error(`Failed to get Azure access token: ${err}`);
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as { access_token: string; expires_in: number };
   cachedToken = {
     accessToken: data.access_token,
     expiresAt: Date.now() + data.expires_in * 1000,
