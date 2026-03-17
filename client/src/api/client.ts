@@ -48,3 +48,20 @@ export const sendEmail = (data: {
 
 export const previewEmail = (bodyHtml: string, contactId?: number) =>
   api.post<{ html: string }>('/emails/preview', { bodyHtml, contactId }).then((r) => r.data);
+
+// Uploads
+export const uploadImage = (file: File): Promise<{ url: string }> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      api.post<{ url: string }>('/uploads/image', {
+        filename: file.name,
+        contentType: file.type,
+        data: base64,
+      }).then((r) => resolve(r.data)).catch(reject);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
