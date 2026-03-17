@@ -9,7 +9,7 @@ interface Props {
   onSave: (data: { name: string; subject: string; body_html: string }) => void;
   onCancel: () => void;
 }
-
+ 
 const PLACEHOLDERS = ['{{username}}', '{{email}}'];
 
 export default function TemplateEditor({ initialName = '', initialSubject = '', initialBody = '', onSave, onCancel }: Props) {
