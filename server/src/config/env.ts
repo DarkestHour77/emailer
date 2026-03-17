@@ -12,4 +12,5 @@ export const env = {
     clientSecret: process.env.AZURE_CLIENT_SECRET || '',
   },
   senderEmail: process.env.SENDER_EMAIL || 'noreply@emailer.dev',
+  appUrl: process.env.APP_URL || `http://localhost:${process.env.PORT || '3001'}`,
 };

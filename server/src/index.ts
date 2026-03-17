@@ -6,6 +6,7 @@ import contactsRouter from './routes/contacts';
 import templatesRouter from './routes/templates';
 import emailsRouter from './routes/emails';
 import uploadsRouter from './routes/uploads';
+import trackingRouter from './routes/tracking';
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use('/api/contacts', contactsRouter);
 app.use('/api/templates', templatesRouter);
 app.use('/api/emails', emailsRouter);
 app.use('/api/uploads', uploadsRouter);
+app.use('/api/track', trackingRouter);
 
 // Error handler
 app.use(errorHandler);

@@ -32,30 +32,34 @@ export interface Template {
 }
 
 export interface Email {
-  id: number;
-  template_id: number | null;
+  id: string;
+  template_id: string | null;
   subject: string;
   body_html: string;
   sender_email: string;
   status: string;
-  scheduled_at: string | null;
-  sent_at: string | null;
+  total_recipients: number;
+  total_opens: number;
+  total_clicks: number;
+  sent_at: string;
   created_at: string;
-  recipientCount: number;
-  openRate: number;
-  clickRate: number;
 }
 
-export interface EmailDetail extends Email {
-  recipients: {
-    name: string;
-    email: string;
-    tracking_id: string;
-    opened_at: string | null;
-    open_count: number;
-    clicked_at: string | null;
-    click_count: number;
-  }[];
+export interface RecipientTracking {
+  trackingId: string;
+  contactId: number;
+  emailId: string;
+  email: string;
+  name: string;
+  opened_at: string | null;
+  open_count: number;
+  clicked_at: string | null;
+  click_count: number;
+}
+
+export interface EmailDetail {
+  email: Email;
+  recipients: RecipientTracking[];
 }
 
 export interface ContactsResponse {
