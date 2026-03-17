@@ -53,7 +53,7 @@ function parseCSV(content: string): Record<string, string>[] {
 }
 
 function loadContacts(): Contact[] {
-  const csvPath = path.join(process.cwd(), 'server', 'data', 'users-export-2026-02-24.csv');
+  const csvPath = path.join(__dirname, '..', '..', 'data', 'users-export-2026-02-24.csv');
   const csvContent = readFileSync(csvPath, 'utf-8');
   const rows = parseCSV(csvContent);
 
