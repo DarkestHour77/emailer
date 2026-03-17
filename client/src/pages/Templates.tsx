@@ -39,7 +39,7 @@ export default function Templates() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       await deleteTemplate(id);
       toast.success('Template deleted');

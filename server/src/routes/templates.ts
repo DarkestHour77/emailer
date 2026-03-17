@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
-import db from '../config/db';
+import { listTemplates, getTemplate, createTemplate, updateTemplate, deleteTemplate } from '../data/templates';
 
 const router = Router();
 
 // List all templates
 router.get('/', async (_req: Request, res: Response) => {
   try {
-    const templates = await db('templates').orderBy('created_at', 'desc');
+    const templates = await listTemplates();
     res.json(templates);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -16,7 +16,8 @@ router.get('/', async (_req: Request, res: Response) => {
 // Get single template
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const template = await db('templates').where({ id: req.params.id }).first();
+    const id = req.params.id as string;
+    const template = await getTemplate(id);
     if (!template) return res.status(404).json({ error: 'Template not found' });
     res.json(template);
   } catch (err) {
@@ -28,13 +29,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { name, subject, body_html, body_text } = req.body;
-    const [id] = await db('templates').insert({
-      name,
-      subject,
-      body_html,
-      body_text: body_text || null,
-    });
-    const template = await db('templates').where({ id }).first();
+    const template = await createTemplate({ name, subject, body_html, body_text });
     res.status(201).json(template);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -45,14 +40,9 @@ router.post('/', async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { name, subject, body_html, body_text } = req.body;
-    await db('templates').where({ id: req.params.id }).update({
-      name,
-      subject,
-      body_html,
-      body_text: body_text || null,
-      updated_at: db.fn.now(),
-    });
-    const template = await db('templates').where({ id: req.params.id }).first();
+    const id = req.params.id as string;
+    const template = await updateTemplate(id, { name, subject, body_html, body_text });
+    if (!template) return res.status(404).json({ error: 'Template not found' });
     res.json(template);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -62,7 +52,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 // Delete template
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    await db('templates').where({ id: req.params.id }).delete();
+    await deleteTemplate(req.params.id as string);
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });

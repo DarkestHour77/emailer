@@ -3,23 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import TemplateSelector from '../components/TemplateSelector';
 import EmailPreview from '../components/EmailPreview';
-import AttachmentUploader from '../components/AttachmentUploader';
-import ScheduleModal from '../components/ScheduleModal';
 import {
   getTemplates,
   getContacts,
   sendEmail,
-  scheduleEmail,
   previewEmail,
-  uploadFiles,
 } from '../api/client';
 import type { Template, Contact } from '../types';
-
-interface UploadedFile {
-  id: number;
-  filename: string;
-  size: number;
-}
 
 export default function ComposeEmail() {
   const location = useLocation();
@@ -32,14 +22,12 @@ export default function ComposeEmail() {
   const [subject, setSubject] = useState('');
   const [bodyHtml, setBodyHtml] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
-  const [attachments, setAttachments] = useState<UploadedFile[]>([]);
-  const [showSchedule, setShowSchedule] = useState(false);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
     getTemplates().then(setTemplates).catch(() => {});
     if (contactIds.length > 0) {
-      getContacts().then((res) => {
+      getContacts({ limit: '1000' }).then((res) => {
         setContacts(res.data.filter((c) => contactIds.includes(c.id)));
       }).catch(() => {});
     }
@@ -61,15 +49,6 @@ export default function ComposeEmail() {
     }
   };
 
-  const handleUpload = async (files: File[]) => {
-    try {
-      const uploaded = await uploadFiles(files);
-      setAttachments((prev) => [...prev, ...uploaded]);
-    } catch {
-      toast.error('Upload failed');
-    }
-  };
-
   const handleSend = async () => {
     if (!subject || !bodyHtml || contactIds.length === 0) {
       toast.error('Subject, body, and recipients are required');
@@ -82,36 +61,13 @@ export default function ComposeEmail() {
         subject,
         bodyHtml,
         templateId: selectedTemplate?.id,
-        attachmentIds: attachments.map((a) => a.id),
       });
       toast.success('Email sent!');
-      navigate('/emails');
+      navigate('/');
     } catch {
       toast.error('Failed to send');
     } finally {
       setSending(false);
-    }
-  };
-
-  const handleSchedule = async (scheduledAt: string) => {
-    if (!subject || !bodyHtml || contactIds.length === 0) {
-      toast.error('Subject, body, and recipients are required');
-      return;
-    }
-    try {
-      await scheduleEmail({
-        contactIds,
-        subject,
-        bodyHtml,
-        templateId: selectedTemplate?.id,
-        attachmentIds: attachments.map((a) => a.id),
-        scheduledAt,
-      });
-      toast.success('Email scheduled!');
-      setShowSchedule(false);
-      navigate('/schedules');
-    } catch {
-      toast.error('Failed to schedule');
     }
   };
 
@@ -160,15 +116,7 @@ export default function ComposeEmail() {
               className="w-full px-3 py-2 border rounded font-mono text-sm h-64"
               value={bodyHtml}
               onChange={(e) => setBodyHtml(e.target.value)}
-              placeholder="<h1>Hello {{name}}</h1>"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Attachments</label>
-            <AttachmentUploader
-              files={attachments}
-              onUpload={handleUpload}
-              onRemove={(id) => setAttachments((prev) => prev.filter((f) => f.id !== id))}
+              placeholder="<h1>Hello {{username}}</h1>"
             />
           </div>
           <div className="flex gap-3">
@@ -179,26 +127,12 @@ export default function ComposeEmail() {
             >
               {sending ? 'Sending...' : 'Send Now'}
             </button>
-            <button
-              className="px-6 py-2 border rounded hover:bg-gray-50"
-              onClick={() => setShowSchedule(true)}
-              disabled={contactIds.length === 0}
-            >
-              Schedule
-            </button>
           </div>
         </div>
         <div>
           <EmailPreview html={previewHtml} />
         </div>
       </div>
-
-      {showSchedule && (
-        <ScheduleModal
-          onSchedule={handleSchedule}
-          onCancel={() => setShowSchedule(false)}
-        />
-      )}
     </div>
   );
 }

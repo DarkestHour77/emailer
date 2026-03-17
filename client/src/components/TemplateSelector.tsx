@@ -2,7 +2,7 @@ import type { Template } from '../types';
 
 interface Props {
   templates: Template[];
-  selectedId: number | null;
+  selectedId: string | null;
   onSelect: (template: Template | null) => void;
 }
 
@@ -12,7 +12,7 @@ export default function TemplateSelector({ templates, selectedId, onSelect }: Pr
       className="w-full px-3 py-2 border rounded text-sm"
       value={selectedId ?? ''}
       onChange={(e) => {
-        const id = e.target.value ? parseInt(e.target.value, 10) : null;
+        const id = e.target.value || null;
         const template = id ? templates.find((t) => t.id === id) ?? null : null;
         onSelect(template);
       }}

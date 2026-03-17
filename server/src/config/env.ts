@@ -12,5 +12,4 @@ export const env = {
     clientSecret: process.env.AZURE_CLIENT_SECRET || '',
   },
   senderEmail: process.env.SENDER_EMAIL || 'noreply@emailer.dev',
-  trackingBaseUrl: process.env.TRACKING_BASE_URL || 'http://localhost:3001',
 };
