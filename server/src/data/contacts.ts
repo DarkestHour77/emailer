@@ -1,5 +1,4 @@
-import { readFileSync } from 'fs';
-import path from 'path';
+import { CSV_DATA } from './csvData';
 
 export interface Contact {
   id: number;
@@ -52,29 +51,8 @@ function parseCSV(content: string): Record<string, string>[] {
   return rows;
 }
 
-function findCsvPath(): string {
-  // Try multiple possible locations (local dev vs Vercel serverless)
-  const CSV_NAME = 'users-export-2026-02-24.csv';
-  const candidates = [
-    path.join(__dirname, '..', '..', 'data', CSV_NAME),
-    path.join(process.cwd(), 'server', 'data', CSV_NAME),
-    path.join(process.cwd(), 'data', CSV_NAME),
-    path.join('/var/task', 'server', 'data', CSV_NAME),
-    path.join('/var/task', 'data', CSV_NAME),
-  ];
-  for (const p of candidates) {
-    try {
-      readFileSync(p, 'utf-8');
-      return p;
-    } catch {}
-  }
-  throw new Error(`CSV not found. Tried: ${candidates.join(', ')}`);
-}
-
 function loadContacts(): Contact[] {
-  const csvPath = findCsvPath();
-  const csvContent = readFileSync(csvPath, 'utf-8');
-  const rows = parseCSV(csvContent);
+  const rows = parseCSV(CSV_DATA);
 
   const seen = new Set<string>();
   const contacts: Contact[] = [];
