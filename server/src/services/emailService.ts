@@ -43,7 +43,7 @@ function rewriteLinks(html: string, trackingId: string): string {
 
 export async function sendEmail(options: SendEmailOptions): Promise<{ sent: number; failed: number; emailId: string }> {
   const { contactIds, subject, bodyHtml, previewText, templateId } = options;
-  const contacts = getContactsByIds(contactIds);
+  const contacts = await getContactsByIds(contactIds);
 
   // Create email record in KV
   const emailRecord = await createEmailRecord({
@@ -71,8 +71,6 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
     const resolvedSubject = subject
       .replace(/\{\{username\}\}/g, contact.username)
       .replace(/\{\{email\}\}/g, contact.email);
-
-    console.log('APP_URL env:', process.env.APP_URL, 'resolved appUrl:', env.appUrl);
 
     // Create recipient tracking record and get trackingId
     const trackingId = await addRecipient(emailRecord.id, {

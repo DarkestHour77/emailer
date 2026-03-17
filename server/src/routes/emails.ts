@@ -44,13 +44,13 @@ router.post('/send', async (req: Request, res: Response) => {
 });
 
 // Preview email (resolve template with a contact)
-router.post('/preview', (req: Request, res: Response) => {
+router.post('/preview', async (req: Request, res: Response) => {
   try {
     const { bodyHtml, contactId } = req.body;
-    let contact = { username: 'JohnDoe', email: 'john@example.com' };
+    let contact: { username: string; email: string } = { username: 'JohnDoe', email: 'john@example.com' };
 
     if (contactId) {
-      const found = getContactById(contactId);
+      const found = await getContactById(contactId);
       if (found) contact = found;
     }
 

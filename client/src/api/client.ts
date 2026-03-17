@@ -22,6 +22,9 @@ export const importContacts = (contacts: Partial<Contact>[]) =>
 export const getFilterOptions = () =>
   api.get<FilterOptions>('/contacts/filters').then((r) => r.data);
 
+export const uploadContactsCsv = (csv: string) =>
+  api.post<{ contactCount: number }>('/contacts/upload-csv', { csv }).then((r) => r.data);
+
 // Templates
 export const getTemplates = () =>
   api.get<Template[]>('/templates').then((r) => r.data);

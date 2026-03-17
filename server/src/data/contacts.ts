@@ -1,3 +1,4 @@
+import { kv } from '@vercel/kv';
 import { CSV_DATA } from './csvData';
 
 export interface Contact {
@@ -19,6 +20,8 @@ export interface Contact {
   judgment_details: number;
   cart_item: string | null;
 }
+
+const CSV_KV_KEY = 'contacts:csv';
 
 function parseCSV(content: string): Record<string, string>[] {
   const lines = content.trim().split('\n');
@@ -48,11 +51,11 @@ function parseCSV(content: string): Record<string, string>[] {
     });
     rows.push(row);
   }
-  return rows; 
+  return rows;
 }
 
-function loadContacts(): Contact[] {
-  const rows = parseCSV(CSV_DATA);
+function csvToContacts(csvContent: string): Contact[] {
+  const rows = parseCSV(csvContent);
 
   const seen = new Set<string>();
   const contacts: Contact[] = [];
@@ -88,18 +91,53 @@ function loadContacts(): Contact[] {
   return contacts;
 }
 
-// Load once at cold start, cached across warm invocations
-const allContacts = loadContacts();
+// In-memory cache
+let allContacts: Contact[] = csvToContacts(CSV_DATA);
+let cacheLoaded = false;
 
-export function getContacts(): Contact[] {
+async function ensureLoaded(): Promise<void> {
+  if (cacheLoaded) return;
+  cacheLoaded = true;
+
+  try {
+    const kvCsv = await kv.get<string>(CSV_KV_KEY);
+    if (kvCsv) {
+      allContacts = csvToContacts(kvCsv);
+    }
+  } catch {
+    // Fall back to embedded CSV if KV fails
+  }
+}
+
+export async function uploadCSV(csvContent: string): Promise<{ contactCount: number }> {
+  // Validate CSV has data
+  const contacts = csvToContacts(csvContent);
+  if (contacts.length === 0) {
+    throw new Error('CSV contains no valid contacts');
+  }
+
+  // Store in KV
+  await kv.set(CSV_KV_KEY, csvContent);
+
+  // Refresh in-memory cache
+  allContacts = contacts;
+  cacheLoaded = true;
+
+  return { contactCount: contacts.length };
+}
+
+export async function getContacts(): Promise<Contact[]> {
+  await ensureLoaded();
   return allContacts;
 }
 
-export function getContactById(id: number): Contact | undefined {
+export async function getContactById(id: number): Promise<Contact | undefined> {
+  await ensureLoaded();
   return allContacts.find((c) => c.id === id);
 }
 
-export function getContactsByIds(ids: number[]): Contact[] {
+export async function getContactsByIds(ids: number[]): Promise<Contact[]> {
+  await ensureLoaded();
   const idSet = new Set(ids);
   return allContacts.filter((c) => idSet.has(c.id));
 }
@@ -112,7 +150,8 @@ interface SearchParams {
   limit?: number;
 }
 
-export function searchContacts(params: SearchParams) {
+export async function searchContacts(params: SearchParams) {
+  await ensureLoaded();
   const { search, subscribed, plan, page = 1, limit = 50 } = params;
   let filtered = allContacts;
 
@@ -138,7 +177,8 @@ export function searchContacts(params: SearchParams) {
   return { data, total, page, limit };
 }
 
-export function getFilterValues() {
+export async function getFilterValues() {
+  await ensureLoaded();
   const plans = [...new Set(allContacts.map((c) => c.plan))].sort();
   const subscribedValues = [...new Set(allContacts.map((c) => c.subscribed))].sort();
   return { plans, subscribedValues };

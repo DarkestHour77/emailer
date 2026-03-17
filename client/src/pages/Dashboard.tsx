@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import ContactTable from '../components/ContactTable';
 import FilterBar from '../components/FilterBar';
-import { getContacts, getFilterOptions } from '../api/client';
+import { getContacts, getFilterOptions, uploadContactsCsv } from '../api/client';
 import type { Contact } from '../types';
 
 export default function Dashboard() {
@@ -15,6 +15,8 @@ export default function Dashboard() {
   const [plan, setPlan] = useState('');
   const [planOptions, setPlanOptions] = useState<string[]>([]);
   const [subscribedOptions, setSubscribedOptions] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getFilterOptions()
@@ -53,10 +55,52 @@ export default function Dashboard() {
     navigate('/compose', { state: { contactIds: ids } });
   };
 
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith('.csv')) {
+      toast.error('Please select a CSV file');
+      return;
+    }
+    setUploading(true);
+    try {
+      const text = await file.text();
+      const result = await uploadContactsCsv(text);
+      toast.success(`Loaded ${result.contactCount} contacts`);
+      setSelectedIds(new Set());
+      fetchContacts();
+      getFilterOptions().then((opts) => {
+        setPlanOptions(opts.plans);
+        setSubscribedOptions(opts.subscribedValues);
+      });
+    } catch {
+      toast.error('Failed to upload CSV');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <h2 className="text-2xl font-bold">Contacts</h2>
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleCsvUpload}
+            className="hidden"
+          />
+          <button
+            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm disabled:opacity-50"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? 'Uploading...' : 'Upload CSV'}
+          </button>
+        </div>
       </div>
 
       <FilterBar
