@@ -48,7 +48,7 @@ function parseCSV(content: string): Record<string, string>[] {
     });
     rows.push(row);
   }
-  return rows;
+  return rows; 
 }
 
 function loadContacts(): Contact[] {
