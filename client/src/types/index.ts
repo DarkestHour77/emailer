@@ -26,6 +26,7 @@ export interface Template {
   subject: string;
   body_html: string;
   body_text: string | null;
+  preview_text: string | null;
   created_at: string;
   updated_at: string;
 }

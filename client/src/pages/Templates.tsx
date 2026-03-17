@@ -22,7 +22,7 @@ export default function Templates() {
     fetchTemplates();
   }, []);
 
-  const handleSave = async (data: { name: string; subject: string; body_html: string }) => {
+  const handleSave = async (data: { name: string; subject: string; body_html: string; preview_text: string }) => {
     try {
       if (editing) {
         await updateTemplate(editing.id, data);
@@ -57,6 +57,7 @@ export default function Templates() {
           initialName={editing?.name}
           initialSubject={editing?.subject}
           initialBody={editing?.body_html}
+          initialPreviewText={editing?.preview_text || ''}
           onSave={handleSave}
           onCancel={() => { setCreating(false); setEditing(null); }}
         />

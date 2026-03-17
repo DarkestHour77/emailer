@@ -7,13 +7,13 @@ const router = Router();
 // Send email immediately
 router.post('/send', async (req: Request, res: Response) => {
   try {
-    const { contactIds, subject, bodyHtml } = req.body;
+    const { contactIds, subject, bodyHtml, previewText } = req.body;
 
     if (!contactIds?.length || !subject || !bodyHtml) {
       return res.status(400).json({ error: 'contactIds, subject, and bodyHtml are required' });
     }
 
-    const result = await sendEmail({ contactIds, subject, bodyHtml });
+    const result = await sendEmail({ contactIds, subject, bodyHtml, previewText });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });

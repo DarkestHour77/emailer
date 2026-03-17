@@ -20,6 +20,7 @@ export default function ComposeEmail() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [subject, setSubject] = useState('');
+  const [previewText, setPreviewText] = useState('');
   const [bodyHtml, setBodyHtml] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
   const [sending, setSending] = useState(false);
@@ -46,6 +47,7 @@ export default function ComposeEmail() {
     if (template) {
       setSubject(template.subject);
       setBodyHtml(template.body_html);
+      setPreviewText(template.preview_text || '');
     }
   };
 
@@ -61,6 +63,7 @@ export default function ComposeEmail() {
         subject,
         bodyHtml,
         templateId: selectedTemplate?.id,
+        previewText: previewText || undefined,
       });
       toast.success('Email sent!');
       navigate('/');
@@ -109,6 +112,16 @@ export default function ComposeEmail() {
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Email subject..."
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Preview Text</label>
+            <input
+              className="w-full px-3 py-2 border rounded"
+              value={previewText}
+              onChange={(e) => setPreviewText(e.target.value)}
+              placeholder="Text shown in inbox preview instead of email body..."
+            />
+            <p className="text-xs text-gray-400 mt-1">This text appears in the inbox preview. It won't be visible in the email itself.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Body (HTML)</label>

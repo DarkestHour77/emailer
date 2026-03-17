@@ -44,6 +44,7 @@ export const sendEmail = (data: {
   subject: string;
   bodyHtml: string;
   templateId?: string;
+  previewText?: string;
 }) => api.post('/emails/send', data).then((r) => r.data);
 
 export const previewEmail = (bodyHtml: string, contactId?: number) =>
