@@ -72,6 +72,8 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
       .replace(/\{\{username\}\}/g, contact.username)
       .replace(/\{\{email\}\}/g, contact.email);
 
+    console.log('APP_URL env:', process.env.APP_URL, 'resolved appUrl:', env.appUrl);
+
     // Create recipient tracking record and get trackingId
     const trackingId = await addRecipient(emailRecord.id, {
       contactId: contact.id,
