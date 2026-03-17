@@ -5,6 +5,7 @@ import { errorHandler } from './middleware/errorHandler';
 import contactsRouter from './routes/contacts';
 import templatesRouter from './routes/templates';
 import emailsRouter from './routes/emails';
+import uploadsRouter from './routes/uploads';
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/contacts', contactsRouter);
 app.use('/api/templates', templatesRouter);
 app.use('/api/emails', emailsRouter);
+app.use('/api/uploads', uploadsRouter);
 
 // Error handler
 app.use(errorHandler);
