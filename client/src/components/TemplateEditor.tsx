@@ -1,13 +1,4 @@
 import { useState, useRef } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
-import Link from '@tiptap/extension-link';
-import TextAlign from '@tiptap/extension-text-align';
-import Underline from '@tiptap/extension-underline';
-import Color from '@tiptap/extension-color';
-import TextStyle from '@tiptap/extension-text-style';
-import Placeholder from '@tiptap/extension-placeholder';
 import EmailPreview from './EmailPreview';
 import { uploadImage } from '../api/client';
 
@@ -19,68 +10,35 @@ interface Props {
   onCancel: () => void;
 }
 
-function ToolbarButton({ active, onClick, children, title }: {
-  active?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  title: string;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={`p-1.5 rounded text-sm font-medium min-w-[28px] ${
-        active ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function ToolbarDivider() {
-  return <div className="w-px h-6 bg-gray-300 mx-1" />;
-}
+const PLACEHOLDERS = ['{{username}}', '{{email}}'];
 
 export default function TemplateEditor({ initialName = '', initialSubject = '', initialBody = '', onSave, onCancel }: Props) {
   const [name, setName] = useState(initialName);
   const [subject, setSubject] = useState(initialSubject);
+  const [bodyHtml, setBodyHtml] = useState(initialBody);
   const [showImageModal, setShowImageModal] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [imageAlt, setImageAlt] = useState('');
   const [imageWidth, setImageWidth] = useState('');
   const [uploading, setUploading] = useState(false);
   const [imageTab, setImageTab] = useState<'url' | 'upload'>('upload');
-  const [showLinkModal, setShowLinkModal] = useState(false);
-  const [linkUrl, setLinkUrl] = useState('');
-  const [editorHtml, setEditorHtml] = useState(initialBody || '');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Image.configure({ inline: false, allowBase64: true }),
-      Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer' } }),
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      Underline,
-      Color,
-      TextStyle,
-      Placeholder.configure({ placeholder: 'Start writing your email template...' }),
-    ],
-    content: initialBody || '',
-    editorProps: {
-      attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none min-h-[300px] px-4 py-3',
-      },
-    },
-    onUpdate: ({ editor }) => {
-      setEditorHtml(editor.getHTML());
-    },
-  });
-
-  const handleInsertPlaceholder = (placeholder: string) => {
-    editor?.chain().focus().insertContent(placeholder).run();
+  const insertAtCursor = (text: string) => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newValue = bodyHtml.substring(0, start) + text + bodyHtml.substring(end);
+      setBodyHtml(newValue);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = start + text.length;
+      }, 0);
+    } else {
+      setBodyHtml((prev) => prev + text);
+    }
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,10 +56,11 @@ export default function TemplateEditor({ initialName = '', initialSubject = '', 
   };
 
   const handleInsertImage = () => {
-    if (!imageUrl || !editor) return;
-    const attrs: Record<string, string> = { src: imageUrl, alt: imageAlt || 'image' };
-    if (imageWidth) attrs.width = imageWidth;
-    editor.chain().focus().setImage(attrs).run();
+    if (!imageUrl) return;
+    const widthAttr = imageWidth ? ` width="${imageWidth}"` : '';
+    const alt = imageAlt || 'image';
+    const imgTag = `<img src="${imageUrl}" alt="${alt}"${widthAttr} style="max-width:100%;height:auto;" />`;
+    insertAtCursor(imgTag);
     resetImageModal();
   };
 
@@ -114,18 +73,9 @@ export default function TemplateEditor({ initialName = '', initialSubject = '', 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleInsertLink = () => {
-    if (!linkUrl || !editor) return;
-    editor.chain().focus().extendMarkRange('link').setLink({ href: linkUrl }).run();
-    setLinkUrl('');
-    setShowLinkModal(false);
-  };
-
-  const previewHtml = editorHtml
+  const previewHtml = bodyHtml
     .replace(/\{\{username\}\}/g, 'JohnDoe')
     .replace(/\{\{email\}\}/g, 'john@example.com');
-
-  if (!editor) return null;
 
   return (
     <div className="grid grid-cols-2 gap-6">
@@ -149,154 +99,36 @@ export default function TemplateEditor({ initialName = '', initialSubject = '', 
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Body</label>
-
-          {/* Toolbar */}
-          <div className="border border-b-0 rounded-t bg-gray-50 px-2 py-1.5 flex flex-wrap items-center gap-0.5">
-            {/* Text Style */}
-            <select
-              className="text-xs border rounded px-1.5 py-1 bg-white"
-              value={
-                editor.isActive('heading', { level: 1 }) ? 'h1' :
-                editor.isActive('heading', { level: 2 }) ? 'h2' :
-                editor.isActive('heading', { level: 3 }) ? 'h3' :
-                'p'
-              }
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === 'p') editor.chain().focus().setParagraph().run();
-                else editor.chain().focus().toggleHeading({ level: parseInt(val[1]) as 1 | 2 | 3 }).run();
-              }}
-            >
-              <option value="p">Paragraph</option>
-              <option value="h1">Heading 1</option>
-              <option value="h2">Heading 2</option>
-              <option value="h3">Heading 3</option>
-            </select>
-
-            <ToolbarDivider />
-
-            {/* Formatting */}
-            <ToolbarButton active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold">
-              <strong>B</strong>
-            </ToolbarButton>
-            <ToolbarButton active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic">
-              <em>I</em>
-            </ToolbarButton>
-            <ToolbarButton active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()} title="Underline">
-              <span className="underline">U</span>
-            </ToolbarButton>
-            <ToolbarButton active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()} title="Strikethrough">
-              <span className="line-through">S</span>
-            </ToolbarButton>
-
-            <ToolbarDivider />
-
-            {/* Text Color */}
-            <div className="relative" title="Text Color">
-              <input
-                type="color"
-                className="w-6 h-6 cursor-pointer border-0 p-0 rounded"
-                onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
-                value={editor.getAttributes('textStyle').color || '#000000'}
-              />
-            </div>
-
-            <ToolbarDivider />
-
-            {/* Alignment */}
-            <ToolbarButton active={editor.isActive({ textAlign: 'left' })} onClick={() => editor.chain().focus().setTextAlign('left').run()} title="Align Left">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h10M3 18h14"/></svg>
-            </ToolbarButton>
-            <ToolbarButton active={editor.isActive({ textAlign: 'center' })} onClick={() => editor.chain().focus().setTextAlign('center').run()} title="Align Center">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M7 12h10M5 18h14"/></svg>
-            </ToolbarButton>
-            <ToolbarButton active={editor.isActive({ textAlign: 'right' })} onClick={() => editor.chain().focus().setTextAlign('right').run()} title="Align Right">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M11 12h10M7 18h14"/></svg>
-            </ToolbarButton>
-
-            <ToolbarDivider />
-
-            {/* Lists */}
-            <ToolbarButton active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullet List">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1.5" fill="currentColor"/><circle cx="4" cy="12" r="1.5" fill="currentColor"/><circle cx="4" cy="18" r="1.5" fill="currentColor"/></svg>
-            </ToolbarButton>
-            <ToolbarButton active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} title="Numbered List">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 6h11M10 12h11M10 18h11"/><text x="2" y="8" fontSize="7" fill="currentColor" stroke="none">1</text><text x="2" y="14" fontSize="7" fill="currentColor" stroke="none">2</text><text x="2" y="20" fontSize="7" fill="currentColor" stroke="none">3</text></svg>
-            </ToolbarButton>
-
-            <ToolbarDivider />
-
-            {/* Block */}
-            <ToolbarButton active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Blockquote">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 17h3l2-4V7H5v6h3zm8 0h3l2-4V7h-6v6h3z"/></svg>
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal Rule">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18"/></svg>
-            </ToolbarButton>
-
-            <ToolbarDivider />
-
-            {/* Link */}
-            <ToolbarButton
-              active={editor.isActive('link')}
-              onClick={() => {
-                if (editor.isActive('link')) {
-                  editor.chain().focus().unsetLink().run();
-                } else {
-                  setLinkUrl('');
-                  setShowLinkModal(true);
-                }
-              }}
-              title="Insert Link"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-            </ToolbarButton>
-
-            {/* Image */}
-            <ToolbarButton onClick={() => setShowImageModal(true)} title="Insert Image">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-            </ToolbarButton>
-
-            <ToolbarDivider />
-
-            {/* Undo/Redo */}
-            <ToolbarButton onClick={() => editor.chain().focus().undo().run()} title="Undo">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 10h10a5 5 0 015 5v2M3 10l5-5M3 10l5 5"/></svg>
-            </ToolbarButton>
-            <ToolbarButton onClick={() => editor.chain().focus().redo().run()} title="Redo">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10H11a5 5 0 00-5 5v2M21 10l-5-5M21 10l-5 5"/></svg>
-            </ToolbarButton>
-
-            <ToolbarDivider />
-
-            {/* Placeholders */}
+          <label className="block text-sm font-medium text-gray-700 mb-1">Body (HTML)</label>
+          <div className="flex gap-2 mb-2">
+            {PLACEHOLDERS.map((p) => (
+              <button
+                key={p}
+                className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200"
+                onClick={() => insertAtCursor(p)}
+              >
+                {p}
+              </button>
+            ))}
             <button
-              className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200"
-              onClick={() => handleInsertPlaceholder('{{username}}')}
-              title="Insert username placeholder"
+              className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+              onClick={() => setShowImageModal(true)}
             >
-              {'{{username}}'}
-            </button>
-            <button
-              className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200"
-              onClick={() => handleInsertPlaceholder('{{email}}')}
-              title="Insert email placeholder"
-            >
-              {'{{email}}'}
+              Insert Image
             </button>
           </div>
-
-          {/* Editor */}
-          <div className="border rounded-b overflow-auto max-h-[400px]">
-            <EditorContent editor={editor} />
-          </div>
+          <textarea
+            ref={textareaRef}
+            className="w-full px-3 py-2 border rounded font-mono text-sm h-96"
+            value={bodyHtml}
+            onChange={(e) => setBodyHtml(e.target.value)}
+            placeholder="Paste your HTML email template here..."
+          />
         </div>
-
         <div className="flex gap-3">
           <button
             className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-            onClick={() => onSave({ name, subject, body_html: editorHtml })}
+            onClick={() => onSave({ name, subject, body_html: bodyHtml })}
           >
             Save Template
           </button>
@@ -312,31 +144,6 @@ export default function TemplateEditor({ initialName = '', initialSubject = '', 
         <EmailPreview html={previewHtml} />
       </div>
 
-      {/* Link Modal */}
-      {showLinkModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm space-y-4">
-            <h3 className="text-lg font-semibold">Insert Link</h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">URL</label>
-              <input
-                className="w-full px-3 py-2 border rounded text-sm"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://example.com"
-                autoFocus
-                onKeyDown={(e) => e.key === 'Enter' && handleInsertLink()}
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button className="px-4 py-2 border rounded hover:bg-gray-50 text-sm" onClick={() => setShowLinkModal(false)}>Cancel</button>
-              <button className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm disabled:opacity-50" onClick={handleInsertLink} disabled={!linkUrl}>Insert</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Image Modal */}
       {showImageModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md space-y-4">
