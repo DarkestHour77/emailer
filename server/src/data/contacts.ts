@@ -54,10 +54,13 @@ function parseCSV(content: string): Record<string, string>[] {
 
 function findCsvPath(): string {
   // Try multiple possible locations (local dev vs Vercel serverless)
+  const CSV_NAME = 'users-export-2026-02-24.csv';
   const candidates = [
-    path.join(__dirname, '..', '..', 'data', 'users-export-2026-02-24.csv'),
-    path.join(process.cwd(), 'server', 'data', 'users-export-2026-02-24.csv'),
-    path.join(process.cwd(), 'data', 'users-export-2026-02-24.csv'),
+    path.join(__dirname, '..', '..', 'data', CSV_NAME),
+    path.join(process.cwd(), 'server', 'data', CSV_NAME),
+    path.join(process.cwd(), 'data', CSV_NAME),
+    path.join('/var/task', 'server', 'data', CSV_NAME),
+    path.join('/var/task', 'data', CSV_NAME),
   ];
   for (const p of candidates) {
     try {

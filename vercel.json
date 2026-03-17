@@ -4,8 +4,8 @@
   "outputDirectory": "client/dist",
   "framework": null,
   "functions": {
-    "api/**": {
-      "includeFiles": "server/data/**"
+    "api/index.ts": {
+      "includeFiles": ["server/data/**"]
     }
   },
   "rewrites": [
