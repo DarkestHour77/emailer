@@ -21,7 +21,7 @@ export interface Contact {
 }
 
 export interface Template {
-  id: number;
+  id: string;
   name: string;
   subject: string;
   body_html: string;
