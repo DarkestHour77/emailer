@@ -52,8 +52,24 @@ function parseCSV(content: string): Record<string, string>[] {
   return rows;
 }
 
+function findCsvPath(): string {
+  // Try multiple possible locations (local dev vs Vercel serverless)
+  const candidates = [
+    path.join(__dirname, '..', '..', 'data', 'users-export-2026-02-24.csv'),
+    path.join(process.cwd(), 'server', 'data', 'users-export-2026-02-24.csv'),
+    path.join(process.cwd(), 'data', 'users-export-2026-02-24.csv'),
+  ];
+  for (const p of candidates) {
+    try {
+      readFileSync(p, 'utf-8');
+      return p;
+    } catch {}
+  }
+  throw new Error(`CSV not found. Tried: ${candidates.join(', ')}`);
+}
+
 function loadContacts(): Contact[] {
-  const csvPath = path.join(__dirname, '..', '..', 'data', 'users-export-2026-02-24.csv');
+  const csvPath = findCsvPath();
   const csvContent = readFileSync(csvPath, 'utf-8');
   const rows = parseCSV(csvContent);
 

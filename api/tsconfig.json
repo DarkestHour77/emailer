@@ -9,5 +9,5 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
-  "include": ["./**/*", "../server/src/**/*", "../server/knexfile.ts"]
+  "include": ["./**/*", "../server/src/**/*"]
 }
