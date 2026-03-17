@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -54,6 +54,7 @@ export default function TemplateEditor({ initialName = '', initialSubject = '', 
   const [imageTab, setImageTab] = useState<'url' | 'upload'>('upload');
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+  const [editorHtml, setEditorHtml] = useState(initialBody || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
@@ -73,11 +74,10 @@ export default function TemplateEditor({ initialName = '', initialSubject = '', 
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[300px] px-4 py-3',
       },
     },
+    onUpdate: ({ editor }) => {
+      setEditorHtml(editor.getHTML());
+    },
   });
-
-  const getHtml = useCallback(() => {
-    return editor?.getHTML() || '';
-  }, [editor]);
 
   const handleInsertPlaceholder = (placeholder: string) => {
     editor?.chain().focus().insertContent(placeholder).run();
@@ -121,7 +121,7 @@ export default function TemplateEditor({ initialName = '', initialSubject = '', 
     setShowLinkModal(false);
   };
 
-  const previewHtml = getHtml()
+  const previewHtml = editorHtml
     .replace(/\{\{username\}\}/g, 'JohnDoe')
     .replace(/\{\{email\}\}/g, 'john@example.com');
 
@@ -296,7 +296,7 @@ export default function TemplateEditor({ initialName = '', initialSubject = '', 
         <div className="flex gap-3">
           <button
             className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-            onClick={() => onSave({ name, subject, body_html: getHtml() })}
+            onClick={() => onSave({ name, subject, body_html: editorHtml })}
           >
             Save Template
           </button>
