@@ -45,10 +45,7 @@ function looksLikeHeader(fields: string[]): boolean {
 
 function parseCSV(content: string): Record<string, string>[] {
   const lines = content.trim().split('\n');
-  console.log('[parseCSV] total lines:', lines.length);
-  console.log('[parseCSV] first line (raw):', JSON.stringify(lines[0]));
   const delimiter = detectDelimiter(lines[0]);
-  console.log('[parseCSV] detected delimiter:', delimiter === '\t' ? 'TAB' : `"${delimiter}"`);
 
   const firstLineFields = lines[0].split(delimiter).map((h) => h.trim());
   let rawHeaders: string[];
@@ -57,13 +54,10 @@ function parseCSV(content: string): Record<string, string>[] {
   if (looksLikeHeader(firstLineFields)) {
     rawHeaders = firstLineFields;
     dataStartIndex = 1;
-    console.log('[parseCSV] first line detected as HEADER');
   } else {
     rawHeaders = DEFAULT_HEADERS;
     dataStartIndex = 0;
-    console.log('[parseCSV] no header row detected, using default headers');
   }
-  console.log('[parseCSV] rawHeaders:', rawHeaders);
   // Build a map from lowercase header to the canonical header names used in rowToContact
   const canonicalHeaders: Record<string, string> = {
     'username': 'Username',
@@ -97,7 +91,6 @@ function parseCSV(content: string): Record<string, string>[] {
     'cart_item': 'Cart item',
   };
   const headers = rawHeaders.map((h) => canonicalHeaders[h.toLowerCase()] || h);
-  console.log('[parseCSV] mapped headers:', headers);
   const rows: Record<string, string>[] = [];
 
   for (let i = dataStartIndex; i < lines.length; i++) {
@@ -154,11 +147,6 @@ function rowToContact(r: Record<string, string>, id: number): Contact | null {
 
 function csvToContacts(csvContent: string): Contact[] {
   const rows = parseCSV(csvContent);
-  console.log('[csvToContacts] parsed rows:', rows.length);
-  if (rows.length > 0) {
-    console.log('[csvToContacts] first row keys:', Object.keys(rows[0]));
-    console.log('[csvToContacts] first row:', rows[0]);
-  }
   const seen = new Set<string>();
   const contacts: Contact[] = [];
   let id = 1;
@@ -166,7 +154,6 @@ function csvToContacts(csvContent: string): Contact[] {
   for (const r of rows) {
     const contact = rowToContact(r, id);
     if (!contact || seen.has(contact.email)) {
-      if (!contact) console.log('[csvToContacts] rowToContact returned null for row:', r);
       continue;
     }
     seen.add(contact.email);
