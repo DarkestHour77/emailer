@@ -21,14 +21,86 @@ export interface Contact {
   cart_item: string | null;
 }
 
-const CSV_KV_KEY = 'contacts:csv';
+const CONTACTS_KV_KEY = 'contacts:all';
+
+const DEFAULT_HEADERS = [
+  'Username', 'Email', 'Online', 'First name', 'Last name', 'Mobile',
+  'Subscribed', 'Plan', 'Pages left', 'Created', 'Last login',
+  'Draft used', 'Research used', 'Contract review', 'Query',
+  'Judgment details', 'Cart item',
+];
+
+const KNOWN_HEADERS = new Set(DEFAULT_HEADERS.map((h) => h.toLowerCase()));
+
+function detectDelimiter(line: string): string {
+  if (line.includes('\t')) return '\t';
+  return ',';
+}
+
+function looksLikeHeader(fields: string[]): boolean {
+  // If most fields match known header names, it's a header row
+  const matches = fields.filter((f) => KNOWN_HEADERS.has(f.trim().toLowerCase()));
+  return matches.length >= 3;
+}
 
 function parseCSV(content: string): Record<string, string>[] {
   const lines = content.trim().split('\n');
-  const headers = lines[0].split(',').map((h) => h.trim());
+  console.log('[parseCSV] total lines:', lines.length);
+  console.log('[parseCSV] first line (raw):', JSON.stringify(lines[0]));
+  const delimiter = detectDelimiter(lines[0]);
+  console.log('[parseCSV] detected delimiter:', delimiter === '\t' ? 'TAB' : `"${delimiter}"`);
+
+  const firstLineFields = lines[0].split(delimiter).map((h) => h.trim());
+  let rawHeaders: string[];
+  let dataStartIndex: number;
+
+  if (looksLikeHeader(firstLineFields)) {
+    rawHeaders = firstLineFields;
+    dataStartIndex = 1;
+    console.log('[parseCSV] first line detected as HEADER');
+  } else {
+    rawHeaders = DEFAULT_HEADERS;
+    dataStartIndex = 0;
+    console.log('[parseCSV] no header row detected, using default headers');
+  }
+  console.log('[parseCSV] rawHeaders:', rawHeaders);
+  // Build a map from lowercase header to the canonical header names used in rowToContact
+  const canonicalHeaders: Record<string, string> = {
+    'username': 'Username',
+    'email': 'Email',
+    'online': 'Online',
+    'first name': 'First name',
+    'first_name': 'First name',
+    'firstname': 'First name',
+    'last name': 'Last name',
+    'last_name': 'Last name',
+    'lastname': 'Last name',
+    'mobile': 'Mobile',
+    'subscribed': 'Subscribed',
+    'plan': 'Plan',
+    'pages left': 'Pages left',
+    'pages_left': 'Pages left',
+    'last login': 'Last login',
+    'last_login': 'Last login',
+    'draft used': 'Draft used',
+    'draft_used': 'Draft used',
+    'research used': 'Research used',
+    'research_used': 'Research used',
+    'contract review': 'Contract review',
+    'contract_review': 'Contract review',
+    'contact review': 'Contract review',
+    'query': 'Query',
+    'query_count': 'Query',
+    'judgment details': 'Judgment details',
+    'judgment_details': 'Judgment details',
+    'cart item': 'Cart item',
+    'cart_item': 'Cart item',
+  };
+  const headers = rawHeaders.map((h) => canonicalHeaders[h.toLowerCase()] || h);
+  console.log('[parseCSV] mapped headers:', headers);
   const rows: Record<string, string>[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = dataStartIndex; i < lines.length; i++) {
     const values: string[] = [];
     let current = '';
     let inQuotes = false;
@@ -36,7 +108,7 @@ function parseCSV(content: string): Record<string, string>[] {
     for (const ch of lines[i]) {
       if (ch === '"') {
         inQuotes = !inQuotes;
-      } else if (ch === ',' && !inQuotes) {
+      } else if (ch === delimiter && !inQuotes) {
         values.push(current.trim());
         current = '';
       } else {
@@ -54,38 +126,52 @@ function parseCSV(content: string): Record<string, string>[] {
   return rows;
 }
 
+function rowToContact(r: Record<string, string>, id: number): Contact | null {
+  let email = (r['Email'] || '').trim();
+  if (!email) email = (r['Username'] || '').trim();
+  if (!email) return null;
+
+  return {
+    id,
+    username: r['Username'] || '',
+    email,
+    online: r['Online'] || 'No',
+    first_name: r['First name'] || null,
+    last_name: r['Last name'] || null,
+    mobile: r['Mobile'] || null,
+    subscribed: r['Subscribed'] || 'No',
+    plan: r['Plan'] || 'Free Trial',
+    pages_left: parseInt(r['Pages left'], 10) || 0,
+    last_login: r['Last login'] && r['Last login'] !== '—' ? r['Last login'] : null,
+    draft_used: parseInt(r['Draft used'], 10) || 0,
+    research_used: parseInt(r['Research used'], 10) || 0,
+    contract_review: parseInt(r['Contract review'], 10) || 0,
+    query_count: parseInt(r['Query'], 10) || 0,
+    judgment_details: parseInt(r['Judgment details'], 10) || 0,
+    cart_item: r['Cart item'] || null,
+  };
+}
+
 function csvToContacts(csvContent: string): Contact[] {
   const rows = parseCSV(csvContent);
-
+  console.log('[csvToContacts] parsed rows:', rows.length);
+  if (rows.length > 0) {
+    console.log('[csvToContacts] first row keys:', Object.keys(rows[0]));
+    console.log('[csvToContacts] first row:', rows[0]);
+  }
   const seen = new Set<string>();
   const contacts: Contact[] = [];
   let id = 1;
 
   for (const r of rows) {
-    let email = (r['Email'] || '').trim();
-    if (!email) email = (r['Username'] || '').trim();
-    if (!email || seen.has(email)) continue;
-    seen.add(email);
-
-    contacts.push({
-      id: id++,
-      username: r['Username'] || '',
-      email,
-      online: r['Online'] || 'No',
-      first_name: r['First name'] || null,
-      last_name: r['Last name'] || null,
-      mobile: r['Mobile'] || null,
-      subscribed: r['Subscribed'] || 'No',
-      plan: r['Plan'] || 'Free Trial',
-      pages_left: parseInt(r['Pages left'], 10) || 0,
-      last_login: r['Last login'] && r['Last login'] !== '—' ? r['Last login'] : null,
-      draft_used: parseInt(r['Draft used'], 10) || 0,
-      research_used: parseInt(r['Research used'], 10) || 0,
-      contract_review: parseInt(r['Contract review'], 10) || 0,
-      query_count: parseInt(r['Query'], 10) || 0,
-      judgment_details: parseInt(r['Judgment details'], 10) || 0,
-      cart_item: r['Cart item'] || null,
-    });
+    const contact = rowToContact(r, id);
+    if (!contact || seen.has(contact.email)) {
+      if (!contact) console.log('[csvToContacts] rowToContact returned null for row:', r);
+      continue;
+    }
+    seen.add(contact.email);
+    contacts.push(contact);
+    id++;
   }
 
   return contacts;
@@ -100,30 +186,56 @@ async function ensureLoaded(): Promise<void> {
   cacheLoaded = true;
 
   try {
-    const kvCsv = await kv.get<string>(CSV_KV_KEY);
-    if (kvCsv) {
-      allContacts = csvToContacts(kvCsv);
+    const kvContacts = await kv.get<Contact[]>(CONTACTS_KV_KEY);
+    if (kvContacts && kvContacts.length > 0) {
+      allContacts = kvContacts;
     }
   } catch {
     // Fall back to embedded CSV if KV fails
   }
 }
 
-export async function uploadCSV(csvContent: string): Promise<{ contactCount: number }> {
-  // Validate CSV has data
-  const contacts = csvToContacts(csvContent);
-  if (contacts.length === 0) {
+export async function uploadCSV(csvContent: string): Promise<{ contactCount: number; newContacts: number; updatedContacts: number }> {
+  const incoming = csvToContacts(csvContent);
+  if (incoming.length === 0) {
     throw new Error('CSV contains no valid contacts');
   }
 
-  // Store in KV
-  await kv.set(CSV_KV_KEY, csvContent);
+  await ensureLoaded();
 
-  // Refresh in-memory cache
-  allContacts = contacts;
+  // Build a map of existing contacts by email for quick lookup
+  const existingByEmail = new Map<string, number>();
+  for (let i = 0; i < allContacts.length; i++) {
+    existingByEmail.set(allContacts[i].email.toLowerCase(), i);
+  }
+
+  const merged = [...allContacts];
+  let newCount = 0;
+  let updatedCount = 0;
+  let nextId = Math.max(...allContacts.map((c) => c.id), 0) + 1;
+
+  for (const contact of incoming) {
+    const key = contact.email.toLowerCase();
+    const existingIdx = existingByEmail.get(key);
+
+    if (existingIdx !== undefined) {
+      // Update existing contact, keep the same id
+      merged[existingIdx] = { ...contact, id: merged[existingIdx].id };
+      updatedCount++;
+    } else {
+      // Add new contact
+      merged.push({ ...contact, id: nextId++ });
+      existingByEmail.set(key, merged.length - 1);
+      newCount++;
+    }
+  }
+
+  // Save to KV and update cache
+  await kv.set(CONTACTS_KV_KEY, merged);
+  allContacts = merged;
   cacheLoaded = true;
 
-  return { contactCount: contacts.length };
+  return { contactCount: merged.length, newContacts: newCount, updatedContacts: updatedCount };
 }
 
 export async function getContacts(): Promise<Contact[]> {

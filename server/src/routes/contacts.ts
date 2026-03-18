@@ -35,6 +35,9 @@ router.get('/filters', async (_req: Request, res: Response) => {
 router.post('/upload-csv', async (req: Request, res: Response) => {
   try {
     const { csv } = req.body;
+    console.log('[upload-csv] body keys:', Object.keys(req.body));
+    console.log('[upload-csv] csv type:', typeof csv, 'length:', csv?.length);
+    console.log('[upload-csv] csv first 200 chars:', typeof csv === 'string' ? csv.substring(0, 200) : csv);
     if (!csv || typeof csv !== 'string') {
       return res.status(400).json({ error: 'csv field is required (string)' });
     }

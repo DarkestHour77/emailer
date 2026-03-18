@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import ContactTable from '../components/ContactTable';
@@ -6,17 +6,51 @@ import FilterBar from '../components/FilterBar';
 import { getContacts, getFilterOptions, uploadContactsCsv } from '../api/client';
 import type { Contact } from '../types';
 
+function MetricCards({ contacts }: { contacts: Contact[] }) {
+  const stats = useMemo(() => {
+    const total = contacts.length;
+    const subscribed = contacts.filter((c) => c.subscribed === 'Yes').length;
+    const plusPlan = contacts.filter((c) => c.plan === 'Plus').length;
+    const today = new Date().toISOString().slice(0, 10);
+    const activeToday = contacts.filter((c) => c.last_login?.startsWith(today)).length;
+    return [
+      { label: 'Total Contacts', value: total, color: 'bg-blue-50 text-blue-700 border-blue-200' },
+      { label: 'Subscribed', value: subscribed, color: 'bg-green-50 text-green-700 border-green-200' },
+      { label: 'Plus Plan', value: plusPlan, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+      { label: 'Active Today', value: activeToday, color: 'bg-amber-50 text-amber-700 border-amber-200' },
+    ];
+  }, [contacts]);
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      {stats.map((s) => (
+        <div key={s.label} className={`rounded-lg border p-4 ${s.color}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-75">{s.label}</p>
+          <p className="text-2xl font-bold mt-1">{s.value.toLocaleString()}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [subscribed, setSubscribed] = useState('');
   const [plan, setPlan] = useState('');
   const [planOptions, setPlanOptions] = useState<string[]>([]);
   const [subscribedOptions, setSubscribedOptions] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     getFilterOptions()
@@ -30,7 +64,7 @@ export default function Dashboard() {
   const fetchContacts = useCallback(async () => {
     try {
       const params: Record<string, string> = {};
-      if (search) params.search = search;
+      if (debouncedSearch) params.search = debouncedSearch;
       if (subscribed) params.subscribed = subscribed;
       if (plan) params.plan = plan;
       params.limit = '1000';
@@ -39,7 +73,7 @@ export default function Dashboard() {
     } catch {
       toast.error('Failed to load contacts');
     }
-  }, [search, subscribed, plan]);
+  }, [debouncedSearch, subscribed, plan]);
 
   // Clear selection when dropdown filters change
   useEffect(() => {
@@ -66,7 +100,7 @@ export default function Dashboard() {
     try {
       const text = await file.text();
       const result = await uploadContactsCsv(text);
-      toast.success(`Loaded ${result.contactCount} contacts`);
+      toast.success(`${result.newContacts} new, ${result.updatedContacts} updated — ${result.contactCount} total contacts`);
       setSelectedIds(new Set());
       fetchContacts();
       getFilterOptions().then((opts) => {
@@ -102,6 +136,8 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      <MetricCards contacts={contacts} />
 
       <FilterBar
         search={search}
