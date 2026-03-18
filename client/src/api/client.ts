@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Contact, ContactsResponse, FilterOptions, Template } from '../types';
+import type { Contact, ContactsResponse, FilterOptions, Template, Email, EmailDetail } from '../types';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -21,6 +21,9 @@ export const importContacts = (contacts: Partial<Contact>[]) =>
 
 export const getFilterOptions = () =>
   api.get<FilterOptions>('/contacts/filters').then((r) => r.data);
+
+export const uploadContactsCsv = (csv: string) =>
+  api.post<{ contactCount: number }>('/contacts/upload-csv', { csv }).then((r) => r.data);
 
 // Templates
 export const getTemplates = () =>
@@ -44,10 +47,17 @@ export const sendEmail = (data: {
   subject: string;
   bodyHtml: string;
   templateId?: string;
+  previewText?: string;
 }) => api.post('/emails/send', data).then((r) => r.data);
 
 export const previewEmail = (bodyHtml: string, contactId?: number) =>
   api.post<{ html: string }>('/emails/preview', { bodyHtml, contactId }).then((r) => r.data);
+
+export const getEmails = () =>
+  api.get<Email[]>('/emails').then((r) => r.data);
+
+export const getEmailDetail = (id: string) =>
+  api.get<EmailDetail>(`/emails/${id}`).then((r) => r.data);
 
 // Uploads
 export const uploadImage = (file: File): Promise<{ url: string }> => {

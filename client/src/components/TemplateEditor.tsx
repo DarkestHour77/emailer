@@ -6,16 +6,18 @@ interface Props {
   initialName?: string;
   initialSubject?: string;
   initialBody?: string;
-  onSave: (data: { name: string; subject: string; body_html: string }) => void;
+  initialPreviewText?: string;
+  onSave: (data: { name: string; subject: string; body_html: string; preview_text: string }) => void;
   onCancel: () => void;
 }
 
 const PLACEHOLDERS = ['{{username}}', '{{email}}'];
 
-export default function TemplateEditor({ initialName = '', initialSubject = '', initialBody = '', onSave, onCancel }: Props) {
+export default function TemplateEditor({ initialName = '', initialSubject = '', initialBody = '', initialPreviewText = '', onSave, onCancel }: Props) {
   const [name, setName] = useState(initialName);
   const [subject, setSubject] = useState(initialSubject);
   const [bodyHtml, setBodyHtml] = useState(initialBody);
+  const [previewText, setPreviewText] = useState(initialPreviewText);
   const [showImageModal, setShowImageModal] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [imageAlt, setImageAlt] = useState('');
@@ -99,6 +101,16 @@ export default function TemplateEditor({ initialName = '', initialSubject = '', 
           />
         </div>
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Preview Text</label>
+          <input
+            className="w-full px-3 py-2 border rounded"
+            value={previewText}
+            onChange={(e) => setPreviewText(e.target.value)}
+            placeholder="Text shown in inbox preview (no HTML allowed)"
+          />
+          <p className="text-xs text-gray-400 mt-1">This text appears in the inbox next to the subject line, instead of email body content.</p>
+        </div>
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Body (HTML)</label>
           <div className="flex gap-2 mb-2">
             {PLACEHOLDERS.map((p) => (
@@ -128,7 +140,7 @@ export default function TemplateEditor({ initialName = '', initialSubject = '', 
         <div className="flex gap-3">
           <button
             className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-            onClick={() => onSave({ name, subject, body_html: bodyHtml })}
+            onClick={() => onSave({ name, subject, body_html: bodyHtml, preview_text: previewText })}
           >
             Save Template
           </button>

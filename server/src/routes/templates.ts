@@ -28,8 +28,8 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Create template
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, subject, body_html, body_text } = req.body;
-    const template = await createTemplate({ name, subject, body_html, body_text });
+    const { name, subject, body_html, body_text, preview_text } = req.body;
+    const template = await createTemplate({ name, subject, body_html, body_text, preview_text });
     res.status(201).json(template);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -39,9 +39,9 @@ router.post('/', async (req: Request, res: Response) => {
 // Update template
 router.put('/:id', async (req: Request, res: Response) => {
   try {
-    const { name, subject, body_html, body_text } = req.body;
+    const { name, subject, body_html, body_text, preview_text } = req.body;
     const id = req.params.id as string;
-    const template = await updateTemplate(id, { name, subject, body_html, body_text });
+    const template = await updateTemplate(id, { name, subject, body_html, body_text, preview_text });
     if (!template) return res.status(404).json({ error: 'Template not found' });
     res.json(template);
   } catch (err) {

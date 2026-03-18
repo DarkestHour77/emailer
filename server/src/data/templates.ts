@@ -7,6 +7,7 @@ export interface Template {
   subject: string;
   body_html: string;
   body_text: string | null;
+  preview_text: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -32,6 +33,7 @@ export async function createTemplate(data: {
   subject: string;
   body_html: string;
   body_text?: string;
+  preview_text?: string;
 }): Promise<Template> {
   const now = new Date().toISOString();
   const template: Template = {
@@ -40,6 +42,7 @@ export async function createTemplate(data: {
     subject: data.subject,
     body_html: data.body_html,
     body_text: data.body_text || null,
+    preview_text: data.preview_text || null,
     created_at: now,
     updated_at: now,
   };
@@ -52,7 +55,7 @@ export async function createTemplate(data: {
 
 export async function updateTemplate(
   id: string,
-  data: { name?: string; subject?: string; body_html?: string; body_text?: string }
+  data: { name?: string; subject?: string; body_html?: string; body_text?: string; preview_text?: string }
 ): Promise<Template | null> {
   const existing = await getTemplate(id);
   if (!existing) return null;
@@ -61,6 +64,7 @@ export async function updateTemplate(
     ...existing,
     ...data,
     body_text: data.body_text !== undefined ? data.body_text || null : existing.body_text,
+    preview_text: data.preview_text !== undefined ? data.preview_text || null : existing.preview_text,
     updated_at: new Date().toISOString(),
   };
 
