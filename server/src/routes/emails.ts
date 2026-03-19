@@ -15,6 +15,16 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
+// List scheduled emails (must be before /:id to avoid matching "scheduled" as an id)
+router.get('/scheduled', async (_req: Request, res: Response) => {
+  try {
+    const emails = await listScheduledEmails();
+    res.json(emails);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // Get email detail with per-recipient tracking
 router.get('/:id', async (req: Request, res: Response) => {
   try {
@@ -80,16 +90,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
 
     const result = await scheduleEmail({ contactIds, subject, bodyHtml, previewText, templateId, scheduledAt });
     res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
-
-// List scheduled emails
-router.get('/scheduled', async (_req: Request, res: Response) => {
-  try {
-    const emails = await listScheduledEmails();
-    res.json(emails);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
