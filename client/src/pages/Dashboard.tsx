@@ -136,6 +136,67 @@ function NewListModal({
   );
 }
 
+function DeleteListModal({
+  open,
+  listName,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean;
+  listName: string;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const [input, setInput] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  if (!open) return null;
+
+  const handleConfirm = async () => {
+    if (input !== 'DELETE') return;
+    setDeleting(true);
+    await onConfirm();
+    setDeleting(false);
+    setInput('');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-semibold mb-2 text-red-600">Delete "{listName}"</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          To confirm deleting the list, type <span className="font-bold">DELETE</span> below.
+        </p>
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="DELETE"
+          className="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+          autoFocus
+          onKeyDown={(e) => e.key === 'Enter' && handleConfirm()}
+        />
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={() => { setInput(''); onClose(); }}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+            disabled={deleting}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={input !== 'DELETE' || deleting}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm disabled:opacity-50"
+          >
+            {deleting ? 'Deleting...' : 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -259,15 +320,23 @@ export default function Dashboard() {
     }
   };
 
-  const handleDeleteList = async (listId: string, listName: string) => {
-    if (!confirm(`Delete "${listName}"? This cannot be undone.`)) return;
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const handleDeleteList = (listId: string, listName: string) => {
+    setDeleteTarget({ id: listId, name: listName });
+  };
+
+  const confirmDeleteList = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteContactList(listId);
-      setContactLists((prev) => prev.filter((l) => l.id !== listId));
-      if (activeList === listId) setActiveList(null);
-      toast.success(`Deleted "${listName}"`);
+      await deleteContactList(deleteTarget.id);
+      setContactLists((prev) => prev.filter((l) => l.id !== deleteTarget.id));
+      if (activeList === deleteTarget.id) setActiveList(null);
+      toast.success(`Deleted "${deleteTarget.name}"`);
     } catch {
       toast.error('Failed to delete list');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -284,7 +353,7 @@ export default function Dashboard() {
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
             onClick={() => setShowNewListModal(true)}
           >
-            + New Contact List
+            + Add New List
           </button>
           <input
             ref={fileInputRef}
@@ -298,7 +367,7 @@ export default function Dashboard() {
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? 'Uploading...' : 'Upload CSV'}
+            {uploading ? 'Uploading...' : 'Add Data'}
           </button>
         </div>
       </div>
@@ -398,6 +467,13 @@ export default function Dashboard() {
           setContactLists((prev) => [...prev, list]);
           setActiveList(list.id);
         }}
+      />
+
+      <DeleteListModal
+        open={!!deleteTarget}
+        listName={deleteTarget?.name || ''}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteList}
       />
     </div>
   );
