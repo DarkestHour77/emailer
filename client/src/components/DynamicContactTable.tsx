@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -10,24 +10,56 @@ import {
   type SortingState,
   type ColumnFiltersState,
   type Table,
+  type ColumnDef,
 } from '@tanstack/react-table';
-import type { Contact } from '../types';
+import type { DynamicContact } from '../types';
 
 interface Props {
-  contacts: Contact[];
+  contacts: DynamicContact[];
+  columns: string[];
   selectedIds: Set<number>;
   onSelectionChange: (ids: Set<number>) => void;
 }
 
-const columnHelper = createColumnHelper<Contact>();
+const columnHelper = createColumnHelper<DynamicContact>();
 
-function getFilteredIds(table: Table<Contact>): number[] {
-  return table.getFilteredRowModel().rows.map((r) => r.original.id);
+function getFilteredIds(table: Table<DynamicContact>): number[] {
+  return table.getFilteredRowModel().rows.map((r) => r.original.id as number);
+}
+
+function ExpandableCell({ value }: { value: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [isTruncated, setIsTruncated] = useState(false);
+  const measureRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    // Reset expanded state when value changes so we can re-measure
+    setExpanded(false);
+  }, [value]);
+
+  useEffect(() => {
+    const el = measureRef.current;
+    if (el && !expanded) {
+      setIsTruncated(el.scrollWidth > el.clientWidth);
+    }
+  }, [value, expanded]);
+
+  return (
+    <span
+      ref={measureRef}
+      onClick={() => {
+        if (isTruncated || expanded) setExpanded(!expanded);
+      }}
+      className={`text-gray-700 block ${expanded ? 'whitespace-normal break-words' : 'truncate'} ${isTruncated || expanded ? 'cursor-pointer hover:text-indigo-600' : ''}`}
+    >
+      {value}
+    </span>
+  );
 }
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
-export default function ContactTable({ contacts, selectedIds, onSelectionChange }: Props) {
+export default function DynamicContactTable({ contacts, columns: csvColumns, selectedIds, onSelectionChange }: Props) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [jumpPage, setJumpPage] = useState('');
@@ -39,8 +71,8 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
     onSelectionChange(next);
   }, [selectedIds, onSelectionChange]);
 
-  const columns = useMemo(
-    () => [
+  const columns = useMemo(() => {
+    const cols: ColumnDef<DynamicContact, any>[] = [
       columnHelper.display({
         id: 'select',
         header: ({ table }) => {
@@ -67,63 +99,29 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
         cell: ({ row }) => (
           <input
             type="checkbox"
-            checked={selectedIds.has(row.original.id)}
-            onChange={() => toggleOne(row.original.id)}
+            checked={selectedIds.has(row.original.id as number)}
+            onChange={() => toggleOne(row.original.id as number)}
           />
         ),
         size: 40,
       }),
-      columnHelper.accessor('username', {
-        header: 'USERNAME',
-        cell: (info) => <span className="font-medium text-gray-900">{info.getValue()}</span>,
-      }),
-      columnHelper.accessor('email', {
-        header: 'EMAIL',
-        cell: (info) => <span className="text-gray-500">{info.getValue()}</span>,
-      }),
-      columnHelper.accessor('subscribed', {
-        header: 'SUBSCRIBED',
-        cell: (info) => {
-          const val = info.getValue();
-          return (
-            <span
-              className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                val === 'Yes'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-700'
-              }`}
-            >
-              {val}
-            </span>
-          );
-        },
-      }),
-      columnHelper.accessor('plan', {
-        header: 'PLAN',
-        cell: (info) => {
-          const val = info.getValue();
-          const color =
-            val === 'Plus'
-              ? 'bg-indigo-100 text-indigo-700'
-              : 'bg-gray-100 text-gray-700';
-          return (
-            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${color}`}>
-              {val}
-            </span>
-          );
-        },
-      }),
-      columnHelper.accessor('pages_left', {
-        header: 'PAGES LEFT',
-        cell: (info) => info.getValue(),
-      }),
-      columnHelper.accessor('last_login', {
-        header: 'LAST LOGIN',
-        cell: (info) => <span className="text-gray-500">{info.getValue() || '\u2014'}</span>,
-      }),
-    ],
-    [selectedIds, onSelectionChange, toggleOne]
-  );
+    ];
+
+    for (const colName of csvColumns) {
+      cols.push(
+        columnHelper.accessor((row) => row[colName] ?? '', {
+          id: colName,
+          header: colName.toUpperCase(),
+          cell: (info) => {
+            const val = info.getValue();
+            return <ExpandableCell value={val != null ? String(val) : '\u2014'} />;
+          },
+        })
+      );
+    }
+
+    return cols;
+  }, [csvColumns, selectedIds, onSelectionChange, toggleOne]);
 
   const table = useReactTable({
     data: contacts,
@@ -143,7 +141,6 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
   const currentPage = table.getState().pagination.pageIndex;
   const pageSize = table.getState().pagination.pageSize;
 
-  // Generate visible page numbers (show up to 7 pages with ellipsis)
   const pageNumbers = useMemo(() => {
     if (pageCount <= 7) return Array.from({ length: pageCount }, (_, i) => i);
     const pages: (number | 'ellipsis-start' | 'ellipsis-end')[] = [0];
@@ -167,7 +164,13 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
   return (
     <div>
       <div className="overflow-x-auto bg-white rounded-lg shadow">
-        <table className="w-full text-sm">
+        <table className="text-sm table-fixed" style={{ width: `${csvColumns.length * 220 + 40}px` }}>
+          <colgroup>
+            <col style={{ width: '40px' }} />
+            {csvColumns.map((col) => (
+              <col key={col} style={{ width: '220px' }} />
+            ))}
+          </colgroup>
           <thead className="bg-gray-100 border-b-2 border-gray-200">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
@@ -175,7 +178,17 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
                   <th
                     key={header.id}
                     className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider cursor-pointer select-none"
-                    onClick={header.column.getToggleSortingHandler()}
+                    onClick={header.id === 'select' ? () => {
+                      const filteredIds = getFilteredIds(table);
+                      const allChecked = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+                      const next = new Set(selectedIds);
+                      if (allChecked) {
+                        filteredIds.forEach((id) => next.delete(id));
+                      } else {
+                        filteredIds.forEach((id) => next.add(id));
+                      }
+                      onSelectionChange(next);
+                    } : header.column.getToggleSortingHandler()}
                   >
                     <div className="flex items-center gap-1">
                       {flexRender(header.column.columnDef.header, header.getContext())}
@@ -208,7 +221,7 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
                 <tr
                   key={row.id}
                   className={`border-b transition-colors ${
-                    selectedIds.has(row.original.id)
+                    selectedIds.has(row.original.id as number)
                       ? 'bg-indigo-50'
                       : idx % 2 === 0
                         ? 'bg-white'
@@ -216,7 +229,11 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
                   } hover:bg-gray-100`}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3">
+                    <td
+                      key={cell.id}
+                      className={`px-4 py-3 overflow-hidden ${cell.column.id === 'select' ? 'cursor-pointer' : ''}`}
+                      onClick={cell.column.id === 'select' ? () => toggleOne(row.original.id as number) : undefined}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -229,7 +246,6 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
 
       {/* Pagination */}
       <div className="flex flex-wrap items-center justify-between mt-4 gap-4">
-        {/* Left: info + rows per page */}
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-600">
             {filteredCount} of {contacts.length} contacts
@@ -249,7 +265,6 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
           </div>
         </div>
 
-        {/* Center: page numbers */}
         <div className="flex items-center gap-1">
           <button
             className="px-2 py-1 border rounded text-sm disabled:opacity-40 hover:bg-gray-100 disabled:hover:bg-white"
@@ -284,7 +299,6 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
           </button>
         </div>
 
-        {/* Right: jump to page */}
         <div className="flex items-center gap-2">
           <label htmlFor="jumpPage" className="text-sm text-gray-600">Go to:</label>
           <input

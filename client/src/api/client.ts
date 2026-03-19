@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Contact, ContactsResponse, FilterOptions, Template, Email, EmailDetail } from '../types';
+import type { Contact, ContactsResponse, DynamicContactsResponse, FilterOptions, Template, Email, EmailDetail, ContactList } from '../types';
 
 const api = axios.create({ baseURL: '/api' });
 
@@ -23,7 +23,23 @@ export const getFilterOptions = () =>
   api.get<FilterOptions>('/contacts/filters').then((r) => r.data);
 
 export const uploadContactsCsv = (csv: string) =>
-  api.post<{ contactCount: number }>('/contacts/upload-csv', { csv }).then((r) => r.data);
+  api.post<{ contactCount: number; newContacts: number; updatedContacts: number }>('/contacts/upload-csv', { csv }).then((r) => r.data);
+
+// Contact Lists
+export const getContactLists = () =>
+  api.get<ContactList[]>('/contacts/lists').then((r) => r.data);
+
+export const createContactList = (name: string, csv: string) =>
+  api.post<ContactList>('/contacts/lists', { name, csv }).then((r) => r.data);
+
+export const getContactsForList = (listId: string, params?: Record<string, string>) =>
+  api.get<DynamicContactsResponse>(`/contacts/lists/${listId}`, { params }).then((r) => r.data);
+
+export const uploadCsvToList = (listId: string, csv: string) =>
+  api.post<{ contactCount: number; newContacts: number; updatedContacts: number; columns: string[] }>(`/contacts/lists/${listId}/upload-csv`, { csv }).then((r) => r.data);
+
+export const deleteContactList = (listId: string) =>
+  api.delete(`/contacts/lists/${listId}`);
 
 // Templates
 export const getTemplates = () =>

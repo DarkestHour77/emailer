@@ -24,12 +24,24 @@ export default function FilterBar({
 }: Props) {
   return (
     <div className="flex flex-wrap gap-4 mb-4">
-      <input
-        className={`flex-1 min-w-[200px] px-3 py-2 ${base} ${search ? activeGlow : ''}`}
-        placeholder="Search username or email..."
-        value={search}
-        onChange={(e) => onSearchChange(e.target.value)}
-      />
+      <div className={`relative flex-1 min-w-[200px]`}>
+        <input
+          className={`w-full px-3 py-2 pr-8 ${base} ${search ? activeGlow : ''}`}
+          placeholder="Search username or email..."
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+        />
+        {search && (
+          <button
+            type="button"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+            onClick={() => onSearchChange('')}
+            aria-label="Clear search"
+          >
+            &times;
+          </button>
+        )}
+      </div>
       <select
         className={`w-48 px-3 py-2 bg-white ${base} ${subscribed ? activeGlow : ''}`}
         value={subscribed}

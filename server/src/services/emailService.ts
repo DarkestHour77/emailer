@@ -86,7 +86,6 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
     try {
       await sendMailViaGraph({ to: contact.email, subject: resolvedSubject, html });
       sent++;
-      console.log(`Sent to ${contact.email}`);
     } catch (err) {
       failed++;
       console.error(`Failed to send to ${contact.email}:`, err);
