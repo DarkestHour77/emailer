@@ -21,7 +21,19 @@ export interface Contact {
   cart_item: string | null;
 }
 
+export interface ContactList {
+  id: string;
+  name: string;
+  contactCount: number;
+  createdAt: string;
+  columns: string[];
+}
+
+// Dynamic contact: id + email (required) + any CSV columns
+export type DynamicContact = { id: number; [key: string]: string | number | null };
+
 const CONTACTS_KV_KEY = 'contacts:all';
+const CONTACT_LISTS_KV_KEY = 'contactlists:index';
 
 const DEFAULT_HEADERS = [
   'Username', 'Email', 'Online', 'First name', 'Last name', 'Mobile',
@@ -43,7 +55,7 @@ function looksLikeHeader(fields: string[]): boolean {
   return matches.length >= 3;
 }
 
-function parseCSV(content: string): Record<string, string>[] {
+function parseCSVLines(content: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = content.trim().split('\n');
   const delimiter = detectDelimiter(lines[0]);
 
@@ -116,7 +128,11 @@ function parseCSV(content: string): Record<string, string>[] {
     });
     rows.push(row);
   }
-  return rows;
+  return { headers, rows };
+}
+
+function parseCSV(content: string): Record<string, string>[] {
+  return parseCSVLines(content).rows;
 }
 
 function rowToContact(r: Record<string, string>, id: number): Contact | null {
@@ -281,4 +297,247 @@ export async function getFilterValues() {
   const plans = [...new Set(allContacts.map((c) => c.plan))].sort();
   const subscribedValues = [...new Set(allContacts.map((c) => c.subscribed))].sort();
   return { plans, subscribedValues };
+}
+
+// --- Dynamic CSV parsing for contact lists ---
+
+// A proper CSV parser that handles multi-line quoted fields and always uses
+// the first row as headers (no fallback to DEFAULT_HEADERS).
+function parseDynamicCSV(content: string): { headers: string[]; rows: Record<string, string>[] } {
+  const delimiter = content.includes('\t') ? '\t' : ',';
+
+  // Parse all fields respecting quoted multi-line values
+  const records: string[][] = [];
+  let current = '';
+  let inQuotes = false;
+  let record: string[] = [];
+
+  for (let i = 0; i < content.length; i++) {
+    const ch = content[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        // Check for escaped quote ""
+        if (i + 1 < content.length && content[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === delimiter) {
+        record.push(current.trim());
+        current = '';
+      } else if (ch === '\n' || ch === '\r') {
+        // Skip \n after \r
+        if (ch === '\r' && i + 1 < content.length && content[i + 1] === '\n') {
+          i++;
+        }
+        record.push(current.trim());
+        current = '';
+        if (record.some((f) => f !== '')) {
+          records.push(record);
+        }
+        record = [];
+      } else {
+        current += ch;
+      }
+    }
+  }
+  // Push last field/record
+  record.push(current.trim());
+  if (record.some((f) => f !== '')) {
+    records.push(record);
+  }
+
+  if (records.length === 0) return { headers: [], rows: [] };
+
+  const headers = records[0];
+  const rows: Record<string, string>[] = [];
+  for (let i = 1; i < records.length; i++) {
+    const row: Record<string, string> = {};
+    headers.forEach((h, idx) => {
+      row[h] = records[i][idx] || '';
+    });
+    rows.push(row);
+  }
+  return { headers, rows };
+}
+
+function csvToDynamicContacts(csvContent: string): { columns: string[]; contacts: DynamicContact[] } {
+  const { headers, rows } = parseDynamicCSV(csvContent);
+  if (headers.length === 0) return { columns: [], contacts: [] };
+
+  // Find the email column for deduplication — look for "email" in header name
+  const emailCol = headers.find((h) => h.toLowerCase().includes('email')) || headers[0];
+
+  const seen = new Set<string>();
+  const contacts: DynamicContact[] = [];
+  let id = 1;
+
+  for (const r of rows) {
+    const emailVal = (r[emailCol] || '').trim();
+    if (!emailVal) continue;
+    const key = emailVal.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const contact: DynamicContact = { id };
+    for (const h of headers) {
+      contact[h] = r[h] || '';
+    }
+    contacts.push(contact);
+    id++;
+  }
+
+  return { columns: headers, contacts };
+}
+
+// --- Contact Lists ---
+
+const listsCache = new Map<string, DynamicContact[]>();
+let listsIndexCache: ContactList[] | null = null;
+
+async function getListsIndex(): Promise<ContactList[]> {
+  if (listsIndexCache) return listsIndexCache;
+  try {
+    const lists = await kv.get<ContactList[]>(CONTACT_LISTS_KV_KEY);
+    listsIndexCache = lists || [];
+  } catch {
+    listsIndexCache = [];
+  }
+  return listsIndexCache;
+}
+
+export async function getContactLists(): Promise<ContactList[]> {
+  return getListsIndex();
+}
+
+export async function createContactList(name: string, csvContent: string): Promise<ContactList> {
+  const { columns, contacts } = csvToDynamicContacts(csvContent);
+  if (contacts.length === 0) {
+    throw new Error('CSV contains no valid contacts');
+  }
+
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const list: ContactList = {
+    id,
+    name,
+    contactCount: contacts.length,
+    createdAt: new Date().toISOString(),
+    columns,
+  };
+
+  const lists = await getListsIndex();
+  lists.push(list);
+
+  await kv.set(CONTACT_LISTS_KV_KEY, lists);
+  await kv.set(`contacts:list:${id}`, contacts);
+
+  listsIndexCache = lists;
+  listsCache.set(id, contacts);
+
+  return list;
+}
+
+export async function getContactsForList(listId: string): Promise<DynamicContact[]> {
+  if (listsCache.has(listId)) return listsCache.get(listId)!;
+  try {
+    const contacts = await kv.get<DynamicContact[]>(`contacts:list:${listId}`);
+    const result = contacts || [];
+    listsCache.set(listId, result);
+    return result;
+  } catch {
+    return [];
+  }
+}
+
+export async function searchContactsForList(listId: string, params: SearchParams) {
+  const allListContacts = await getContactsForList(listId);
+  const { search, page = 1, limit = 50 } = params;
+  let filtered = allListContacts;
+
+  if (search) {
+    const s = search.toLowerCase();
+    filtered = filtered.filter((c) =>
+      Object.values(c).some(
+        (v) => typeof v === 'string' && v.toLowerCase().includes(s)
+      )
+    );
+  }
+
+  const total = filtered.length;
+  const offset = (page - 1) * limit;
+  const data = filtered.slice(offset, offset + limit);
+
+  return { data, total, page, limit };
+}
+
+export async function uploadCSVToList(listId: string, csvContent: string): Promise<{ contactCount: number; newContacts: number; updatedContacts: number; columns: string[] }> {
+  const { columns, contacts: incoming } = csvToDynamicContacts(csvContent);
+  if (incoming.length === 0) {
+    throw new Error('CSV contains no valid contacts');
+  }
+
+  const existing = await getContactsForList(listId);
+
+  // Find email column for dedup
+  const emailCol = columns.find((h) => h.toLowerCase() === 'email') || columns[0];
+
+  const existingByKey = new Map<string, number>();
+  for (let i = 0; i < existing.length; i++) {
+    const val = String(existing[i][emailCol] || '').toLowerCase();
+    if (val) existingByKey.set(val, i);
+  }
+
+  const merged = [...existing];
+  let newCount = 0;
+  let updatedCount = 0;
+  let nextId = Math.max(...existing.map((c) => c.id as number), 0) + 1;
+
+  for (const contact of incoming) {
+    const key = String(contact[emailCol] || '').toLowerCase();
+    const existingIdx = existingByKey.get(key);
+
+    if (existingIdx !== undefined) {
+      merged[existingIdx] = { ...contact, id: merged[existingIdx].id };
+      updatedCount++;
+    } else {
+      merged.push({ ...contact, id: nextId++ });
+      existingByKey.set(key, merged.length - 1);
+      newCount++;
+    }
+  }
+
+  await kv.set(`contacts:list:${listId}`, merged);
+  listsCache.set(listId, merged);
+
+  // Update contact count and columns in the index
+  const lists = await getListsIndex();
+  const listEntry = lists.find((l) => l.id === listId);
+  if (listEntry) {
+    listEntry.contactCount = merged.length;
+    listEntry.columns = columns;
+    await kv.set(CONTACT_LISTS_KV_KEY, lists);
+    listsIndexCache = lists;
+  }
+
+  return { contactCount: merged.length, newContacts: newCount, updatedContacts: updatedCount, columns };
+}
+
+export async function deleteContactList(listId: string): Promise<void> {
+  const lists = await getListsIndex();
+  const idx = lists.findIndex((l) => l.id === listId);
+  if (idx === -1) throw new Error('Contact list not found');
+
+  lists.splice(idx, 1);
+  await kv.set(CONTACT_LISTS_KV_KEY, lists);
+  await kv.del(`contacts:list:${listId}`);
+
+  listsIndexCache = lists;
+  listsCache.delete(listId);
 }

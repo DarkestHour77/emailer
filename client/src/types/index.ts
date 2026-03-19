@@ -69,7 +69,26 @@ export interface ContactsResponse {
   limit: number;
 }
 
+// Dynamic contact from CSV - any columns
+export type DynamicContact = { id: number; [key: string]: string | number | null };
+
+export interface DynamicContactsResponse {
+  data: DynamicContact[];
+  total: number;
+  page: number;
+  limit: number;
+  columns: string[];
+}
+
 export interface FilterOptions {
   plans: string[];
   subscribedValues: string[];
+}
+
+export interface ContactList {
+  id: string;
+  name: string;
+  contactCount: number;
+  createdAt: string;
+  columns?: string[];
 }
