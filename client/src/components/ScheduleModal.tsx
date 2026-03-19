@@ -9,10 +9,16 @@ export default function ScheduleModal({ onSchedule, onCancel }: Props) {
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
 
+  const today = new Date().toISOString().slice(0, 10);
+
   const handleSubmit = () => {
     if (!date || !time) return;
-    const scheduledAt = new Date(`${date}T${time}`).toISOString();
-    onSchedule(scheduledAt);
+    const scheduled = new Date(`${date}T${time}`);
+    if (scheduled.getTime() <= Date.now()) {
+      alert('Please select a future date and time');
+      return;
+    }
+    onSchedule(scheduled.toISOString());
   };
 
   return (
@@ -25,6 +31,7 @@ export default function ScheduleModal({ onSchedule, onCancel }: Props) {
             <input
               type="date"
               className="w-full px-3 py-2 border rounded"
+              min={today}
               value={date}
               onChange={(e) => setDate(e.target.value)}
             />

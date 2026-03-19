@@ -7,6 +7,7 @@ import templatesRouter from './routes/templates';
 import emailsRouter from './routes/emails';
 import uploadsRouter from './routes/uploads';
 import trackingRouter from './routes/tracking';
+import { processScheduledEmails } from './services/emailService';
 
 const app = express();
 
@@ -28,6 +29,12 @@ app.use(errorHandler);
 if (!process.env.VERCEL) {
   app.listen(env.port, () => {
     console.log(`Server running on http://localhost:${env.port}`);
+    // Poll every 30 seconds for due scheduled emails
+    setInterval(() => {
+      processScheduledEmails().catch((err) =>
+        console.error('Scheduler error:', err)
+      );
+    }, 30_000);
   });
 }
 

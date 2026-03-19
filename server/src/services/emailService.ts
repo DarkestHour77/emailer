@@ -1,6 +1,12 @@
 import { sendMailViaGraph } from '../config/mailer';
 import { getContactsByIds } from '../data/contacts';
-import { createEmailRecord, addRecipient, updateEmailStatus } from '../data/emails';
+import {
+  createEmailRecord,
+  addRecipient,
+  updateEmailStatus,
+  getDueScheduledEmails,
+  type EmailRecord,
+} from '../data/emails';
 import { env } from '../config/env';
 
 interface SendEmailOptions {
@@ -97,4 +103,90 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
   await updateEmailStatus(emailRecord.id, status);
 
   return { sent, failed, emailId: emailRecord.id };
+}
+
+interface ScheduleEmailOptions extends SendEmailOptions {
+  scheduledAt: string;
+}
+
+export async function scheduleEmail(options: ScheduleEmailOptions): Promise<{ emailId: string; scheduledAt: string }> {
+  const { contactIds, subject, bodyHtml, previewText, templateId, scheduledAt } = options;
+
+  const emailRecord = await createEmailRecord({
+    subject,
+    body_html: bodyHtml,
+    template_id: templateId,
+    sender_email: env.senderEmail,
+    scheduled_at: scheduledAt,
+    contact_ids: contactIds,
+    preview_text: previewText,
+  });
+
+  return { emailId: emailRecord.id, scheduledAt };
+}
+
+async function sendScheduledEmail(record: EmailRecord): Promise<void> {
+  if (!record.contact_ids || record.contact_ids.length === 0) return;
+
+  const contacts = await getContactsByIds(record.contact_ids);
+  let sent = 0;
+  let failed = 0;
+
+  for (const contact of contacts) {
+    let html = record.body_html
+      .replace(/\{\{username\}\}/g, contact.username)
+      .replace(/\{\{email\}\}/g, contact.email);
+
+    if (record.preview_text) {
+      const resolvedPreview = record.preview_text
+        .replace(/\{\{username\}\}/g, contact.username)
+        .replace(/\{\{email\}\}/g, contact.email);
+      html = injectPreheader(html, resolvedPreview);
+    }
+
+    const resolvedSubject = record.subject
+      .replace(/\{\{username\}\}/g, contact.username)
+      .replace(/\{\{email\}\}/g, contact.email);
+
+    const trackingId = await addRecipient(record.id, {
+      contactId: contact.id,
+      email: contact.email,
+      name: contact.username,
+    });
+
+    html = rewriteLinks(html, trackingId);
+    html = injectTrackingPixel(html, trackingId);
+
+    try {
+      await sendMailViaGraph({ to: contact.email, subject: resolvedSubject, html });
+      sent++;
+    } catch (err) {
+      failed++;
+      console.error(`[Scheduler] Failed to send to ${contact.email}:`, err);
+    }
+  }
+
+  const status = failed === 0 ? 'sent' : sent === 0 ? 'failed' : 'partial';
+  await updateEmailStatus(record.id, status);
+  console.log(`[Scheduler] Email ${record.id}: ${sent} sent, ${failed} failed`);
+}
+
+let isProcessing = false;
+
+export async function processScheduledEmails(): Promise<void> {
+  if (isProcessing) return;
+  isProcessing = true;
+
+  try {
+    const dueEmails = await getDueScheduledEmails();
+    for (const email of dueEmails) {
+      try {
+        await sendScheduledEmail(email);
+      } catch (err) {
+        console.error(`[Scheduler] Error processing email ${email.id}:`, err);
+      }
+    }
+  } finally {
+    isProcessing = false;
+  }
 }

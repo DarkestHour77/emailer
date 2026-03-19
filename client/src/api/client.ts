@@ -75,6 +75,21 @@ export const getEmails = () =>
 export const getEmailDetail = (id: string) =>
   api.get<EmailDetail>(`/emails/${id}`).then((r) => r.data);
 
+export const scheduleEmail = (data: {
+  contactIds: number[];
+  subject: string;
+  bodyHtml: string;
+  templateId?: string;
+  previewText?: string;
+  scheduledAt: string;
+}) => api.post<{ emailId: string; scheduledAt: string }>('/emails/schedule', data).then((r) => r.data);
+
+export const getScheduledEmails = () =>
+  api.get<Email[]>('/emails/scheduled').then((r) => r.data);
+
+export const cancelScheduledEmail = (id: string) =>
+  api.post<{ success: boolean }>(`/emails/${id}/cancel`).then((r) => r.data);
+
 // Uploads
 export const uploadImage = (file: File): Promise<{ url: string }> => {
   return new Promise((resolve, reject) => {

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { sendEmail } from '../services/emailService';
+import { sendEmail, scheduleEmail } from '../services/emailService';
 import { getContactById } from '../data/contacts';
-import { listEmails, getEmailDetail } from '../data/emails';
+import { listEmails, getEmailDetail, listScheduledEmails, cancelScheduledEmail } from '../data/emails';
 
 const router = Router();
 
@@ -61,6 +61,47 @@ router.post('/preview', async (req: Request, res: Response) => {
     res.json({ html });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Schedule email for later
+router.post('/schedule', async (req: Request, res: Response) => {
+  try {
+    const { contactIds, subject, bodyHtml, previewText, templateId, scheduledAt } = req.body;
+
+    if (!contactIds?.length || !subject || !bodyHtml || !scheduledAt) {
+      return res.status(400).json({ error: 'contactIds, subject, bodyHtml, and scheduledAt are required' });
+    }
+
+    const scheduled = new Date(scheduledAt);
+    if (isNaN(scheduled.getTime()) || scheduled.getTime() <= Date.now()) {
+      return res.status(400).json({ error: 'scheduledAt must be a valid future date' });
+    }
+
+    const result = await scheduleEmail({ contactIds, subject, bodyHtml, previewText, templateId, scheduledAt });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// List scheduled emails
+router.get('/scheduled', async (_req: Request, res: Response) => {
+  try {
+    const emails = await listScheduledEmails();
+    res.json(emails);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Cancel a scheduled email
+router.post('/:id/cancel', async (req: Request, res: Response) => {
+  try {
+    await cancelScheduledEmail(req.params.id as string);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
   }
 });
 

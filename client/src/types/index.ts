@@ -43,6 +43,8 @@ export interface Email {
   total_clicks: number;
   sent_at: string;
   created_at: string;
+  scheduled_at: string | null;
+  contact_ids: number[] | null;
 }
 
 export interface RecipientTracking {
