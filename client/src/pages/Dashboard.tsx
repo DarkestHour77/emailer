@@ -411,7 +411,7 @@ export default function Dashboard() {
       {activeList ? (
         <>
           {/* Simple search bar for dynamic lists */}
-          <div className="mb-4">
+          <div className="mb-4 flex items-center gap-3">
             <input
               type="text"
               value={search}
@@ -419,6 +419,26 @@ export default function Dashboard() {
               placeholder="Search contacts..."
               className="w-full max-w-md border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
+            <button
+              className="px-4 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-100 whitespace-nowrap"
+              onClick={() => {
+                const allIds = dynamicContacts.map((c) => c.id as number);
+                const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
+                setSelectedIds(allSelected ? new Set() : new Set(allIds));
+              }}
+            >
+              {dynamicContacts.length > 0 && dynamicContacts.every((c) => selectedIds.has(c.id as number))
+                ? 'Deselect All'
+                : 'Select All'}
+            </button>
+            {selectedIds.size > 0 && (
+              <button
+                className="px-4 py-2 border border-red-300 rounded text-sm font-medium text-red-600 hover:bg-red-50 whitespace-nowrap"
+                onClick={() => setSelectedIds(new Set())}
+              >
+                Clear Selection
+              </button>
+            )}
           </div>
           <DynamicContactTable
             contacts={dynamicContacts}
@@ -440,6 +460,28 @@ export default function Dashboard() {
             onSubscribedChange={setSubscribed}
             onPlanChange={setPlan}
           />
+          <div className="mb-3 flex items-center gap-3">
+            <button
+              className="px-4 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-100"
+              onClick={() => {
+                const allIds = contacts.map((c) => c.id);
+                const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
+                setSelectedIds(allSelected ? new Set() : new Set(allIds));
+              }}
+            >
+              {contacts.length > 0 && contacts.every((c) => selectedIds.has(c.id))
+                ? 'Deselect All'
+                : 'Select All'}
+            </button>
+            {selectedIds.size > 0 && (
+              <button
+                className="px-4 py-2 border border-red-300 rounded text-sm font-medium text-red-600 hover:bg-red-50"
+                onClick={() => setSelectedIds(new Set())}
+              >
+                Clear Selection
+              </button>
+            )}
+          </div>
           <ContactTable
             contacts={contacts}
             selectedIds={selectedIds}
