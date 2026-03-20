@@ -23,8 +23,8 @@ interface Props {
 
 const columnHelper = createColumnHelper<DynamicContact>();
 
-function getFilteredIds(table: Table<DynamicContact>): number[] {
-  return table.getFilteredRowModel().rows.map((r) => r.original.id as number);
+function getPageIds(table: Table<DynamicContact>): number[] {
+  return table.getRowModel().rows.map((r) => r.original.id as number);
 }
 
 function ExpandableCell({ value }: { value: string }) {
@@ -76,22 +76,21 @@ export default function DynamicContactTable({ contacts, columns: csvColumns, sel
       columnHelper.display({
         id: 'select',
         header: ({ table }) => {
-          const filteredIds = getFilteredIds(table);
-          const allChecked = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+          const pageIds = getPageIds(table);
+          const allPageChecked = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
           return (
             <input
               type="checkbox"
-              checked={allChecked}
+              checked={allPageChecked}
+              title="Select all on this page"
               onChange={() => {
-                if (allChecked) {
-                  const next = new Set(selectedIds);
-                  filteredIds.forEach((id) => next.delete(id));
-                  onSelectionChange(next);
+                const next = new Set(selectedIds);
+                if (allPageChecked) {
+                  pageIds.forEach((id) => next.delete(id));
                 } else {
-                  const next = new Set(selectedIds);
-                  filteredIds.forEach((id) => next.add(id));
-                  onSelectionChange(next);
+                  pageIds.forEach((id) => next.add(id));
                 }
+                onSelectionChange(next);
               }}
             />
           );
@@ -178,17 +177,7 @@ export default function DynamicContactTable({ contacts, columns: csvColumns, sel
                   <th
                     key={header.id}
                     className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider cursor-pointer select-none"
-                    onClick={header.id === 'select' ? () => {
-                      const filteredIds = getFilteredIds(table);
-                      const allChecked = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
-                      const next = new Set(selectedIds);
-                      if (allChecked) {
-                        filteredIds.forEach((id) => next.delete(id));
-                      } else {
-                        filteredIds.forEach((id) => next.add(id));
-                      }
-                      onSelectionChange(next);
-                    } : header.column.getToggleSortingHandler()}
+                    onClick={header.id === 'select' ? undefined : header.column.getToggleSortingHandler()}
                   >
                     <div className="flex items-center gap-1">
                       {flexRender(header.column.columnDef.header, header.getContext())}

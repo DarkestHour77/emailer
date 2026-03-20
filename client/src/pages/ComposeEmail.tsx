@@ -3,40 +3,61 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import TemplateSelector from '../components/TemplateSelector';
 import EmailPreview from '../components/EmailPreview';
+import ScheduleModal from '../components/ScheduleModal';
 import {
   getTemplates,
   getContacts,
+  getContactsForList,
   sendEmail,
   previewEmail,
+  scheduleEmail,
 } from '../api/client';
-import type { Template, Contact } from '../types';
+import type { Template, Contact, DynamicContact } from '../types';
 
 export default function ComposeEmail() {
   const location = useLocation();
   const navigate = useNavigate();
   const contactIds: number[] = location.state?.contactIds || [];
+  const listId: string | null = location.state?.listId || null;
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [dynamicContacts, setDynamicContacts] = useState<DynamicContact[]>([]);
+  const [dynamicEmailCol, setDynamicEmailCol] = useState<string>('email');
+  const [dynamicNameCol, setDynamicNameCol] = useState<string | null>(null);
   const [subject, setSubject] = useState('');
   const [previewText, setPreviewText] = useState('');
   const [bodyHtml, setBodyHtml] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
   const [sending, setSending] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   useEffect(() => {
     getTemplates().then(setTemplates).catch(() => {});
     if (contactIds.length > 0) {
-      getContacts({ limit: '1000' }).then((res) => {
-        setContacts(res.data.filter((c) => contactIds.includes(c.id)));
-      }).catch(() => {});
+      if (listId) {
+        // Fetch contacts from the specific list
+        getContactsForList(listId, { limit: '10000' }).then((res) => {
+          const idSet = new Set(contactIds);
+          setDynamicContacts(res.data.filter((c) => idSet.has(c.id)));
+          const cols = res.columns || [];
+          const emailCol = cols.find((h) => h.toLowerCase().includes('email')) || cols[0] || 'email';
+          const nameCol = cols.find((h) => /^(username|name|first.?name|full.?name)$/i.test(h)) || null;
+          setDynamicEmailCol(emailCol);
+          setDynamicNameCol(nameCol);
+        }).catch(() => {});
+      } else {
+        getContacts({ limit: '1000' }).then((res) => {
+          setContacts(res.data.filter((c) => contactIds.includes(c.id)));
+        }).catch(() => {});
+      }
     }
   }, []);
 
   useEffect(() => {
     if (bodyHtml) {
-      previewEmail(bodyHtml, contactIds[0]).then((r) => setPreviewHtml(r.html)).catch(() => {});
+      previewEmail(bodyHtml, contactIds[0], listId || undefined).then((r) => setPreviewHtml(r.html)).catch(() => {});
     } else {
       setPreviewHtml('');
     }
@@ -64,11 +85,38 @@ export default function ComposeEmail() {
         bodyHtml,
         templateId: selectedTemplate?.id,
         previewText: previewText || undefined,
+        listId: listId || undefined,
       });
       toast.success('Email sent!');
       navigate('/');
     } catch {
       toast.error('Failed to send');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSchedule = async (scheduledAt: string) => {
+    if (!subject || !bodyHtml || contactIds.length === 0) {
+      toast.error('Subject, body, and recipients are required');
+      return;
+    }
+    setShowScheduleModal(false);
+    setSending(true);
+    try {
+      await scheduleEmail({
+        contactIds,
+        subject,
+        bodyHtml,
+        templateId: selectedTemplate?.id,
+        previewText: previewText || undefined,
+        scheduledAt,
+        listId: listId || undefined,
+      });
+      toast.success('Email scheduled!');
+      navigate('/schedules');
+    } catch {
+      toast.error('Failed to schedule');
     } finally {
       setSending(false);
     }
@@ -80,15 +128,27 @@ export default function ComposeEmail() {
 
       <div className="mb-4 bg-white rounded-lg shadow p-4">
         <h3 className="text-sm font-medium text-gray-600 mb-2">
-          Recipients ({contacts.length})
+          Recipients ({listId ? dynamicContacts.length : contacts.length})
         </h3>
         <div className="flex flex-wrap gap-2">
-          {contacts.map((c) => (
-            <span key={c.id} className="bg-gray-100 px-3 py-1 rounded-full text-sm">
-              {c.username} &lt;{c.email}&gt;
-            </span>
-          ))}
-          {contacts.length === 0 && (
+          {listId ? (
+            dynamicContacts.map((c) => {
+              const email = String(c[dynamicEmailCol] ?? '');
+              const name = dynamicNameCol ? String(c[dynamicNameCol] ?? '') : '';
+              return (
+                <span key={c.id} className="bg-gray-100 px-3 py-1 rounded-full text-sm">
+                  {name ? `${name} <${email}>` : email}
+                </span>
+              );
+            })
+          ) : (
+            contacts.map((c) => (
+              <span key={c.id} className="bg-gray-100 px-3 py-1 rounded-full text-sm">
+                {c.username} &lt;{c.email}&gt;
+              </span>
+            ))
+          )}
+          {contacts.length === 0 && dynamicContacts.length === 0 && (
             <p className="text-sm text-gray-400">No recipients selected. Go back to Dashboard to select contacts.</p>
           )}
         </div>
@@ -140,12 +200,26 @@ export default function ComposeEmail() {
             >
               {sending ? 'Sending...' : 'Send Now'}
             </button>
+            <button
+              className="px-6 py-2 border border-indigo-600 text-indigo-600 rounded hover:bg-indigo-50 disabled:opacity-50"
+              onClick={() => setShowScheduleModal(true)}
+              disabled={sending || contactIds.length === 0}
+            >
+              Schedule
+            </button>
           </div>
         </div>
         <div>
           <EmailPreview html={previewHtml} />
         </div>
       </div>
+
+      {showScheduleModal && (
+        <ScheduleModal
+          onSchedule={handleSchedule}
+          onCancel={() => setShowScheduleModal(false)}
+        />
+      )}
     </div>
   );
 }

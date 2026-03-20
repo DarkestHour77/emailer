@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { sendEmail } from '../services/emailService';
-import { getContactById } from '../data/contacts';
-import { listEmails, getEmailDetail } from '../data/emails';
+import { sendEmail, scheduleEmail } from '../services/emailService';
+import { getContactById, getContactsByIdsForList, getContactListById, detectEmailColumn, detectNameColumn } from '../data/contacts';
+import { listEmails, getEmailDetail, listScheduledEmails, cancelScheduledEmail } from '../data/emails';
 
 const router = Router();
 
@@ -9,6 +9,16 @@ const router = Router();
 router.get('/', async (_req: Request, res: Response) => {
   try {
     const emails = await listEmails();
+    res.json(emails);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// List scheduled emails (must be before /:id to avoid matching "scheduled" as an id)
+router.get('/scheduled', async (_req: Request, res: Response) => {
+  try {
+    const emails = await listScheduledEmails();
     res.json(emails);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -30,13 +40,13 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Send email immediately
 router.post('/send', async (req: Request, res: Response) => {
   try {
-    const { contactIds, subject, bodyHtml, previewText, templateId } = req.body;
+    const { contactIds, subject, bodyHtml, previewText, templateId, listId } = req.body;
 
     if (!contactIds?.length || !subject || !bodyHtml) {
       return res.status(400).json({ error: 'contactIds, subject, and bodyHtml are required' });
     }
 
-    const result = await sendEmail({ contactIds, subject, bodyHtml, previewText, templateId });
+    const result = await sendEmail({ contactIds, subject, bodyHtml, previewText, templateId, listId });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -46,21 +56,68 @@ router.post('/send', async (req: Request, res: Response) => {
 // Preview email (resolve template with a contact)
 router.post('/preview', async (req: Request, res: Response) => {
   try {
-    const { bodyHtml, contactId } = req.body;
-    let contact: { username: string; email: string } = { username: 'JohnDoe', email: 'john@example.com' };
+    const { bodyHtml, contactId, listId } = req.body;
+    let vars: Record<string, string> = { username: 'JohnDoe', email: 'john@example.com' };
 
-    if (contactId) {
+    if (listId && contactId) {
+      const listContacts = await getContactsByIdsForList(listId, [contactId]);
+      if (listContacts.length > 0) {
+        const contact = listContacts[0];
+        const listMeta = await getContactListById(listId);
+        const columns = listMeta?.columns || Object.keys(contact).filter((k) => k !== 'id');
+        const emailCol = detectEmailColumn(columns);
+        const nameCol = detectNameColumn(columns);
+        vars = {};
+        for (const [key, val] of Object.entries(contact)) {
+          if (key === 'id') continue;
+          vars[key] = String(val ?? '');
+        }
+        vars['email'] = String(contact[emailCol] ?? '');
+        if (nameCol) vars['username'] = String(contact[nameCol] ?? '');
+      }
+    } else if (contactId) {
       const found = await getContactById(contactId);
-      if (found) contact = found;
+      if (found) vars = { username: found.username, email: found.email };
     }
 
-    const html = (bodyHtml || '')
-      .replace(/\{\{username\}\}/g, contact.username)
-      .replace(/\{\{email\}\}/g, contact.email);
+    const html = (bodyHtml || '').replace(/\{\{(\w[\w\s]*?)\}\}/g, (match: string, key: string) => {
+      return vars[key.trim()] ?? match;
+    });
 
     res.json({ html });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Schedule email for later
+router.post('/schedule', async (req: Request, res: Response) => {
+  try {
+    const { contactIds, subject, bodyHtml, previewText, templateId, scheduledAt, listId } = req.body;
+
+    if (!contactIds?.length || !subject || !bodyHtml || !scheduledAt) {
+      return res.status(400).json({ error: 'contactIds, subject, bodyHtml, and scheduledAt are required' });
+    }
+
+    const scheduled = new Date(scheduledAt);
+    if (isNaN(scheduled.getTime()) || scheduled.getTime() <= Date.now()) {
+      return res.status(400).json({ error: 'scheduledAt must be a valid future date' });
+    }
+
+    const result = await scheduleEmail({ contactIds, subject, bodyHtml, previewText, templateId, scheduledAt, listId });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Cancel a scheduled email
+router.post('/:id/cancel', async (req: Request, res: Response) => {
+  try {
+    await cancelScheduledEmail(req.params.id as string);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
   }
 });
 

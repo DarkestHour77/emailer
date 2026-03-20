@@ -7,12 +7,16 @@ export interface EmailRecord {
   body_html: string;
   template_id: string | null;
   sender_email: string;
-  status: 'sent' | 'partial' | 'failed';
+  status: 'sent' | 'partial' | 'failed' | 'scheduled' | 'cancelled';
   total_recipients: number;
   total_opens: number;
   total_clicks: number;
   sent_at: string;
   created_at: string;
+  scheduled_at: string | null;
+  contact_ids: number[] | null;
+  preview_text: string | null;
+  list_id: string | null;
 }
 
 export interface RecipientTracking {
@@ -28,6 +32,7 @@ export interface RecipientTracking {
 }
 
 const EMAILS_KEY = 'emails:list';
+const SCHEDULED_KEY = 'emails:scheduled';
 const emailKey = (id: string) => `email:${id}`;
 const recipientsKey = (emailId: string) => `email:${emailId}:recipients`;
 const trackingKey = (trackingId: string) => `tracking:${trackingId}`;
@@ -37,24 +42,38 @@ export async function createEmailRecord(data: {
   body_html: string;
   template_id?: string;
   sender_email: string;
+  scheduled_at?: string;
+  contact_ids?: number[];
+  preview_text?: string;
+  list_id?: string;
 }): Promise<EmailRecord> {
   const now = new Date().toISOString();
+  const isScheduled = !!data.scheduled_at;
   const record: EmailRecord = {
     id: uuidv4(),
     subject: data.subject,
     body_html: data.body_html,
     template_id: data.template_id || null,
     sender_email: data.sender_email,
-    status: 'sent',
+    status: isScheduled ? 'scheduled' : 'sent',
     total_recipients: 0,
     total_opens: 0,
     total_clicks: 0,
-    sent_at: now,
+    sent_at: isScheduled ? '' : now,
     created_at: now,
+    scheduled_at: data.scheduled_at || null,
+    contact_ids: data.contact_ids || null,
+    preview_text: data.preview_text || null,
+    list_id: data.list_id || null,
   };
 
   await kv.set(emailKey(record.id), record);
   await kv.zadd(EMAILS_KEY, { score: Date.now(), member: record.id });
+
+  if (isScheduled) {
+    const scheduledTime = new Date(data.scheduled_at!).getTime();
+    await kv.zadd(SCHEDULED_KEY, { score: scheduledTime, member: record.id });
+  }
 
   return record;
 }
@@ -132,12 +151,16 @@ export async function recordClick(trackingId: string): Promise<void> {
 
 export async function updateEmailStatus(
   emailId: string,
-  status: 'sent' | 'partial' | 'failed'
+  status: EmailRecord['status']
 ): Promise<void> {
   const email = await kv.get<EmailRecord>(emailKey(emailId));
   if (email) {
     email.status = status;
     await kv.set(emailKey(emailId), email);
+    // Remove from scheduled set when no longer scheduled
+    if (status !== 'scheduled') {
+      await kv.zrem(SCHEDULED_KEY, emailId);
+    }
   }
 }
 
@@ -163,4 +186,36 @@ export async function getEmailDetail(
   const recipients = await kv.mget<RecipientTracking[]>(...keys);
 
   return { email, recipients: recipients.filter(Boolean) };
+}
+
+export async function getDueScheduledEmails(): Promise<EmailRecord[]> {
+  const ids = await kv.zrange(SCHEDULED_KEY, 0, Date.now(), { byScore: true });
+  if (!ids.length) return [];
+
+  const keys = (ids as string[]).map(emailKey);
+  const emails = await kv.mget<EmailRecord[]>(...keys);
+  return emails.filter((e) => e && e.status === 'scheduled') as EmailRecord[];
+}
+
+export async function listScheduledEmails(): Promise<EmailRecord[]> {
+  const ids = await kv.zrange(SCHEDULED_KEY, 0, -1);
+  if (!ids.length) return [];
+
+  const keys = (ids as string[]).map(emailKey);
+  const emails = await kv.mget<EmailRecord[]>(...keys);
+  return emails.filter((e) => e && e.status === 'scheduled') as EmailRecord[];
+}
+
+export async function cancelScheduledEmail(emailId: string): Promise<void> {
+  const email = await kv.get<EmailRecord>(emailKey(emailId));
+  if (!email) throw new Error('Email not found');
+  if (email.status !== 'scheduled') throw new Error('Email is not scheduled');
+
+  email.status = 'cancelled';
+  await kv.set(emailKey(emailId), email);
+  await kv.zrem(SCHEDULED_KEY, emailId);
+}
+
+export async function getEmailRecord(emailId: string): Promise<EmailRecord | null> {
+  return kv.get<EmailRecord>(emailKey(emailId));
 }

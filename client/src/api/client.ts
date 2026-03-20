@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { Contact, ContactsResponse, DynamicContactsResponse, FilterOptions, Template, Email, EmailDetail, ContactList } from '../types';
 
-const api = axios.create({ baseURL: '/api' });
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' });
 
 // Contacts
 export const getContacts = (params?: Record<string, string>) =>
@@ -64,16 +64,33 @@ export const sendEmail = (data: {
   bodyHtml: string;
   templateId?: string;
   previewText?: string;
+  listId?: string;
 }) => api.post('/emails/send', data).then((r) => r.data);
 
-export const previewEmail = (bodyHtml: string, contactId?: number) =>
-  api.post<{ html: string }>('/emails/preview', { bodyHtml, contactId }).then((r) => r.data);
+export const previewEmail = (bodyHtml: string, contactId?: number, listId?: string) =>
+  api.post<{ html: string }>('/emails/preview', { bodyHtml, contactId, listId }).then((r) => r.data);
 
 export const getEmails = () =>
   api.get<Email[]>('/emails').then((r) => r.data);
 
 export const getEmailDetail = (id: string) =>
   api.get<EmailDetail>(`/emails/${id}`).then((r) => r.data);
+
+export const scheduleEmail = (data: {
+  contactIds: number[];
+  subject: string;
+  bodyHtml: string;
+  templateId?: string;
+  previewText?: string;
+  scheduledAt: string;
+  listId?: string;
+}) => api.post<{ emailId: string; scheduledAt: string }>('/emails/schedule', data).then((r) => r.data);
+
+export const getScheduledEmails = () =>
+  api.get<Email[]>('/emails/scheduled').then((r) => r.data);
+
+export const cancelScheduledEmail = (id: string) =>
+  api.post<{ success: boolean }>(`/emails/${id}/cancel`).then((r) => r.data);
 
 // Uploads
 export const uploadImage = (file: File): Promise<{ url: string }> => {

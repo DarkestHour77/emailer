@@ -21,8 +21,8 @@ interface Props {
 
 const columnHelper = createColumnHelper<Contact>();
 
-function getFilteredIds(table: Table<Contact>): number[] {
-  return table.getFilteredRowModel().rows.map((r) => r.original.id);
+function getPageIds(table: Table<Contact>): number[] {
+  return table.getRowModel().rows.map((r) => r.original.id);
 }
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
@@ -44,22 +44,21 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
       columnHelper.display({
         id: 'select',
         header: ({ table }) => {
-          const filteredIds = getFilteredIds(table);
-          const allChecked = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+          const pageIds = getPageIds(table);
+          const allPageChecked = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
           return (
             <input
               type="checkbox"
-              checked={allChecked}
+              checked={allPageChecked}
+              title="Select all on this page"
               onChange={() => {
-                if (allChecked) {
-                  const next = new Set(selectedIds);
-                  filteredIds.forEach((id) => next.delete(id));
-                  onSelectionChange(next);
+                const next = new Set(selectedIds);
+                if (allPageChecked) {
+                  pageIds.forEach((id) => next.delete(id));
                 } else {
-                  const next = new Set(selectedIds);
-                  filteredIds.forEach((id) => next.add(id));
-                  onSelectionChange(next);
+                  pageIds.forEach((id) => next.add(id));
                 }
+                onSelectionChange(next);
               }}
             />
           );
