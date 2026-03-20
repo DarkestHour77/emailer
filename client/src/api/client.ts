@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { Contact, ContactsResponse, DynamicContactsResponse, FilterOptions, Template, Email, EmailDetail, ContactList } from '../types';
 
-const api = axios.create({ baseURL: '/api' });
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' });
 
 // Contacts
 export const getContacts = (params?: Record<string, string>) =>
