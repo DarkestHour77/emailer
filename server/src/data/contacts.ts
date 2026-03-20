@@ -300,6 +300,7 @@ export async function searchContacts(params: SearchParams) {
   }
 
   const total = filtered.length;
+  if (limit === 0) return { data: filtered, total, page: 1, limit: total };
   const offset = (page - 1) * limit;
   const data = filtered.slice(offset, offset + limit);
 
@@ -490,6 +491,7 @@ export async function searchContactsForList(listId: string, params: SearchParams
   }
 
   const total = filtered.length;
+  if (limit === 0) return { data: filtered, total, page: 1, limit: total };
   const offset = (page - 1) * limit;
   const data = filtered.slice(offset, offset + limit);
 

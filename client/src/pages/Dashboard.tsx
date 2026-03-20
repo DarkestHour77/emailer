@@ -243,7 +243,7 @@ export default function Dashboard() {
     try {
       const params: Record<string, string> = {};
       if (debouncedSearch) params.search = debouncedSearch;
-      params.limit = '1000';
+      params.limit = '0';
 
       if (activeList) {
         const res = await getContactsForList(activeList, params);

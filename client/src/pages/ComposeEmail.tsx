@@ -38,7 +38,7 @@ export default function ComposeEmail() {
     if (contactIds.length > 0) {
       if (listId) {
         // Fetch contacts from the specific list
-        getContactsForList(listId, { limit: '10000' }).then((res) => {
+        getContactsForList(listId, { limit: '0' }).then((res) => {
           const idSet = new Set(contactIds);
           setDynamicContacts(res.data.filter((c) => idSet.has(c.id)));
           const cols = res.columns || [];
@@ -48,7 +48,7 @@ export default function ComposeEmail() {
           setDynamicNameCol(nameCol);
         }).catch(() => {});
       } else {
-        getContacts({ limit: '1000' }).then((res) => {
+        getContacts({ limit: '0' }).then((res) => {
           setContacts(res.data.filter((c) => contactIds.includes(c.id)));
         }).catch(() => {});
       }
