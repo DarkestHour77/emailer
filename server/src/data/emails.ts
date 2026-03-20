@@ -16,6 +16,7 @@ export interface EmailRecord {
   scheduled_at: string | null;
   contact_ids: number[] | null;
   preview_text: string | null;
+  list_id: string | null;
 }
 
 export interface RecipientTracking {
@@ -44,6 +45,7 @@ export async function createEmailRecord(data: {
   scheduled_at?: string;
   contact_ids?: number[];
   preview_text?: string;
+  list_id?: string;
 }): Promise<EmailRecord> {
   const now = new Date().toISOString();
   const isScheduled = !!data.scheduled_at;
@@ -62,6 +64,7 @@ export async function createEmailRecord(data: {
     scheduled_at: data.scheduled_at || null,
     contact_ids: data.contact_ids || null,
     preview_text: data.preview_text || null,
+    list_id: data.list_id || null,
   };
 
   await kv.set(emailKey(record.id), record);

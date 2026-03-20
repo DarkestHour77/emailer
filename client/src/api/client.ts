@@ -64,10 +64,11 @@ export const sendEmail = (data: {
   bodyHtml: string;
   templateId?: string;
   previewText?: string;
+  listId?: string;
 }) => api.post('/emails/send', data).then((r) => r.data);
 
-export const previewEmail = (bodyHtml: string, contactId?: number) =>
-  api.post<{ html: string }>('/emails/preview', { bodyHtml, contactId }).then((r) => r.data);
+export const previewEmail = (bodyHtml: string, contactId?: number, listId?: string) =>
+  api.post<{ html: string }>('/emails/preview', { bodyHtml, contactId, listId }).then((r) => r.data);
 
 export const getEmails = () =>
   api.get<Email[]>('/emails').then((r) => r.data);
@@ -82,6 +83,7 @@ export const scheduleEmail = (data: {
   templateId?: string;
   previewText?: string;
   scheduledAt: string;
+  listId?: string;
 }) => api.post<{ emailId: string; scheduledAt: string }>('/emails/schedule', data).then((r) => r.data);
 
 export const getScheduledEmails = () =>

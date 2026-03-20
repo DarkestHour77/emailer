@@ -1,5 +1,6 @@
 import { sendMailViaGraph } from '../config/mailer';
-import { getContactsByIds } from '../data/contacts';
+import { getContactsByIds, getContactsByIdsForList, getContactListById, detectEmailColumn, detectNameColumn } from '../data/contacts';
+import type { DynamicContact } from '../data/contacts';
 import {
   createEmailRecord,
   addRecipient,
@@ -15,6 +16,25 @@ interface SendEmailOptions {
   bodyHtml: string;
   previewText?: string;
   templateId?: string;
+  listId?: string;
+}
+
+function resolveTemplate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{(\w[\w\s]*?)\}\}/g, (match, key) => {
+    return vars[key.trim()] ?? match;
+  });
+}
+
+function buildVarsFromDynamicContact(contact: DynamicContact, emailCol: string, nameCol: string | null): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const [key, val] of Object.entries(contact)) {
+    if (key === 'id') continue;
+    vars[key] = String(val ?? '');
+  }
+  // Map standard template vars to detected columns
+  vars['email'] = String(contact[emailCol] ?? '');
+  if (nameCol) vars['username'] = String(contact[nameCol] ?? '');
+  return vars;
 }
 
 function injectPreheader(html: string, previewText: string): string {
@@ -48,8 +68,7 @@ function rewriteLinks(html: string, trackingId: string): string {
 }
 
 export async function sendEmail(options: SendEmailOptions): Promise<{ sent: number; failed: number; emailId: string }> {
-  const { contactIds, subject, bodyHtml, previewText, templateId } = options;
-  const contacts = await getContactsByIds(contactIds);
+  const { contactIds, subject, bodyHtml, previewText, templateId, listId } = options;
 
   // Create email record in KV
   const emailRecord = await createEmailRecord({
@@ -62,39 +81,79 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
   let sent = 0;
   let failed = 0;
 
-  for (const contact of contacts) {
-    let html = bodyHtml
-      .replace(/\{\{username\}\}/g, contact.username)
-      .replace(/\{\{email\}\}/g, contact.email);
+  if (listId) {
+    // Contacts from a custom list (DynamicContact)
+    const listContacts = await getContactsByIdsForList(listId, contactIds);
+    const listMeta = await getContactListById(listId);
+    const columns = listMeta?.columns || Object.keys(listContacts[0] || {}).filter((k) => k !== 'id');
+    const emailCol = detectEmailColumn(columns);
+    const nameCol = detectNameColumn(columns);
 
-    if (previewText) {
-      const resolvedPreview = previewText
+    for (const contact of listContacts) {
+      const vars = buildVarsFromDynamicContact(contact, emailCol, nameCol);
+      let html = resolveTemplate(bodyHtml, vars);
+
+      if (previewText) {
+        html = injectPreheader(html, resolveTemplate(previewText, vars));
+      }
+
+      const resolvedSubject = resolveTemplate(subject, vars);
+      const contactEmail = vars['email'];
+      const contactName = vars['username'] || contactEmail;
+
+      const trackingId = await addRecipient(emailRecord.id, {
+        contactId: contact.id,
+        email: contactEmail,
+        name: contactName,
+      });
+
+      html = rewriteLinks(html, trackingId);
+      html = injectTrackingPixel(html, trackingId);
+
+      try {
+        await sendMailViaGraph({ to: contactEmail, subject: resolvedSubject, html });
+        sent++;
+      } catch (err) {
+        failed++;
+        console.error(`Failed to send to ${contactEmail}:`, err);
+      }
+    }
+  } else {
+    // Standard contacts
+    const contacts = await getContactsByIds(contactIds);
+
+    for (const contact of contacts) {
+      let html = bodyHtml
         .replace(/\{\{username\}\}/g, contact.username)
         .replace(/\{\{email\}\}/g, contact.email);
-      html = injectPreheader(html, resolvedPreview);
-    }
 
-    const resolvedSubject = subject
-      .replace(/\{\{username\}\}/g, contact.username)
-      .replace(/\{\{email\}\}/g, contact.email);
+      if (previewText) {
+        const resolvedPreview = previewText
+          .replace(/\{\{username\}\}/g, contact.username)
+          .replace(/\{\{email\}\}/g, contact.email);
+        html = injectPreheader(html, resolvedPreview);
+      }
 
-    // Create recipient tracking record and get trackingId
-    const trackingId = await addRecipient(emailRecord.id, {
-      contactId: contact.id,
-      email: contact.email,
-      name: contact.username,
-    });
+      const resolvedSubject = subject
+        .replace(/\{\{username\}\}/g, contact.username)
+        .replace(/\{\{email\}\}/g, contact.email);
 
-    // Inject tracking pixel and rewrite links
-    html = rewriteLinks(html, trackingId);
-    html = injectTrackingPixel(html, trackingId);
+      const trackingId = await addRecipient(emailRecord.id, {
+        contactId: contact.id,
+        email: contact.email,
+        name: contact.username,
+      });
 
-    try {
-      await sendMailViaGraph({ to: contact.email, subject: resolvedSubject, html });
-      sent++;
-    } catch (err) {
-      failed++;
-      console.error(`Failed to send to ${contact.email}:`, err);
+      html = rewriteLinks(html, trackingId);
+      html = injectTrackingPixel(html, trackingId);
+
+      try {
+        await sendMailViaGraph({ to: contact.email, subject: resolvedSubject, html });
+        sent++;
+      } catch (err) {
+        failed++;
+        console.error(`Failed to send to ${contact.email}:`, err);
+      }
     }
   }
 
@@ -110,7 +169,7 @@ interface ScheduleEmailOptions extends SendEmailOptions {
 }
 
 export async function scheduleEmail(options: ScheduleEmailOptions): Promise<{ emailId: string; scheduledAt: string }> {
-  const { contactIds, subject, bodyHtml, previewText, templateId, scheduledAt } = options;
+  const { contactIds, subject, bodyHtml, previewText, templateId, scheduledAt, listId } = options;
 
   const emailRecord = await createEmailRecord({
     subject,
@@ -120,6 +179,7 @@ export async function scheduleEmail(options: ScheduleEmailOptions): Promise<{ em
     scheduled_at: scheduledAt,
     contact_ids: contactIds,
     preview_text: previewText,
+    list_id: listId,
   });
 
   return { emailId: emailRecord.id, scheduledAt };
@@ -128,47 +188,15 @@ export async function scheduleEmail(options: ScheduleEmailOptions): Promise<{ em
 async function sendScheduledEmail(record: EmailRecord): Promise<void> {
   if (!record.contact_ids || record.contact_ids.length === 0) return;
 
-  const contacts = await getContactsByIds(record.contact_ids);
-  let sent = 0;
-  let failed = 0;
-
-  for (const contact of contacts) {
-    let html = record.body_html
-      .replace(/\{\{username\}\}/g, contact.username)
-      .replace(/\{\{email\}\}/g, contact.email);
-
-    if (record.preview_text) {
-      const resolvedPreview = record.preview_text
-        .replace(/\{\{username\}\}/g, contact.username)
-        .replace(/\{\{email\}\}/g, contact.email);
-      html = injectPreheader(html, resolvedPreview);
-    }
-
-    const resolvedSubject = record.subject
-      .replace(/\{\{username\}\}/g, contact.username)
-      .replace(/\{\{email\}\}/g, contact.email);
-
-    const trackingId = await addRecipient(record.id, {
-      contactId: contact.id,
-      email: contact.email,
-      name: contact.username,
-    });
-
-    html = rewriteLinks(html, trackingId);
-    html = injectTrackingPixel(html, trackingId);
-
-    try {
-      await sendMailViaGraph({ to: contact.email, subject: resolvedSubject, html });
-      sent++;
-    } catch (err) {
-      failed++;
-      console.error(`[Scheduler] Failed to send to ${contact.email}:`, err);
-    }
-  }
-
-  const status = failed === 0 ? 'sent' : sent === 0 ? 'failed' : 'partial';
-  await updateEmailStatus(record.id, status);
-  console.log(`[Scheduler] Email ${record.id}: ${sent} sent, ${failed} failed`);
+  // Reuse sendEmail logic which handles both standard and list contacts
+  await sendEmail({
+    contactIds: record.contact_ids,
+    subject: record.subject,
+    bodyHtml: record.body_html,
+    previewText: record.preview_text || undefined,
+    templateId: record.template_id || undefined,
+    listId: record.list_id || undefined,
+  });
 }
 
 let isProcessing = false;

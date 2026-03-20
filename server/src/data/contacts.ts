@@ -257,6 +257,20 @@ export async function getContactsByIds(ids: number[]): Promise<Contact[]> {
   return allContacts.filter((c) => idSet.has(c.id));
 }
 
+export async function getContactsByIdsForList(listId: string, ids: number[]): Promise<DynamicContact[]> {
+  const allListContacts = await getContactsForList(listId);
+  const idSet = new Set(ids);
+  return allListContacts.filter((c) => idSet.has(c.id));
+}
+
+export function detectEmailColumn(columns: string[]): string {
+  return columns.find((h) => h.toLowerCase().includes('email')) || columns[0];
+}
+
+export function detectNameColumn(columns: string[]): string | null {
+  return columns.find((h) => /^(username|name|first.?name|full.?name)$/i.test(h)) || null;
+}
+
 interface SearchParams {
   search?: string;
   subscribed?: string;
@@ -415,6 +429,11 @@ async function getListsIndex(): Promise<ContactList[]> {
 
 export async function getContactLists(): Promise<ContactList[]> {
   return getListsIndex();
+}
+
+export async function getContactListById(listId: string): Promise<ContactList | undefined> {
+  const lists = await getListsIndex();
+  return lists.find((l) => l.id === listId);
 }
 
 export async function createContactList(name: string, csvContent: string): Promise<ContactList> {
