@@ -1,4 +1,4 @@
-import { sendMailViaGraph } from '../config/mailer';
+import { sendMailViaSES } from '../config/mailer';
 import { getContactsByIds, getContactsByIdsForList, getContactListById, detectEmailColumn, detectNameColumn } from '../data/contacts';
 import type { DynamicContact } from '../data/contacts';
 import {
@@ -111,7 +111,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
       html = injectTrackingPixel(html, trackingId);
 
       try {
-        await sendMailViaGraph({ to: contactEmail, subject: resolvedSubject, html });
+        await sendMailViaSES({ to: contactEmail, subject: resolvedSubject, html });
         sent++;
       } catch (err) {
         failed++;
@@ -148,7 +148,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
       html = injectTrackingPixel(html, trackingId);
 
       try {
-        await sendMailViaGraph({ to: contact.email, subject: resolvedSubject, html });
+        await sendMailViaSES({ to: contact.email, subject: resolvedSubject, html });
         sent++;
       } catch (err) {
         failed++;
