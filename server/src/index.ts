@@ -7,6 +7,7 @@ import templatesRouter from './routes/templates';
 import emailsRouter from './routes/emails';
 import uploadsRouter from './routes/uploads';
 import trackingRouter from './routes/tracking';
+import rateLimitRouter from './routes/rateLimit';
 import { processScheduledEmails } from './services/emailService';
 
 const app = express();
@@ -21,6 +22,7 @@ app.use('/api/templates', templatesRouter);
 app.use('/api/emails', emailsRouter);
 app.use('/api/uploads', uploadsRouter);
 app.use('/api/track', trackingRouter);
+app.use('/api/rate-limit', rateLimitRouter);
 
 // Error handler
 app.use(errorHandler);

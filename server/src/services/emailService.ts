@@ -9,6 +9,7 @@ import {
   type EmailRecord,
 } from '../data/emails';
 import { env } from '../config/env';
+import { waitForNextEmailSend } from '../utils/rateLimiter';
 
 interface SendEmailOptions {
   contactIds: number[];
@@ -90,6 +91,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
     const nameCol = detectNameColumn(columns);
 
     for (const contact of listContacts) {
+      // Wait for rate limit before sending each email
+      await waitForNextEmailSend();
+
       const vars = buildVarsFromDynamicContact(contact, emailCol, nameCol);
       let html = resolveTemplate(bodyHtml, vars);
 
@@ -123,6 +127,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
     const contacts = await getContactsByIds(contactIds);
 
     for (const contact of contacts) {
+      // Wait for rate limit before sending each email
+      await waitForNextEmailSend();
+
       let html = bodyHtml
         .replace(/\{\{username\}\}/g, contact.username)
         .replace(/\{\{email\}\}/g, contact.email);
