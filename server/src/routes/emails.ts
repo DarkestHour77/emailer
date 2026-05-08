@@ -9,7 +9,7 @@ const router = Router();
 router.get('/', async (_req: Request, res: Response) => {
   try {
     const emails = await listEmails();
-    res.json(emails);
+    res.json({ data: emails, total: emails.length, page: 1, limit: emails.length });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -19,7 +19,7 @@ router.get('/', async (_req: Request, res: Response) => {
 router.get('/scheduled', async (_req: Request, res: Response) => {
   try {
     const emails = await listScheduledEmails();
-    res.json(emails);
+    res.json({ data: emails, total: emails.length, page: 1, limit: emails.length });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

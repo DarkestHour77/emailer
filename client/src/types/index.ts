@@ -1,7 +1,7 @@
 export interface Contact {
   id: number;
   username: string;
-  email: string;
+  email: string | null;
   online: string;
   first_name: string | null;
   last_name: string | null;
@@ -16,8 +16,8 @@ export interface Contact {
   query_count: number;
   judgment_details: number;
   cart_item: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface Template {
@@ -27,8 +27,8 @@ export interface Template {
   body_html: string;
   body_text: string | null;
   preview_text: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface Email {
@@ -41,8 +41,8 @@ export interface Email {
   total_recipients: number;
   total_opens: number;
   total_clicks: number;
-  sent_at: string;
-  created_at: string;
+  sent_at: string | null;
+  created_at: string | null;
   scheduled_at: string | null;
   contact_ids: number[] | null;
 }
@@ -91,6 +91,6 @@ export interface ContactList {
   id: string;
   name: string;
   contactCount: number;
-  createdAt: string;
+  createdAt: string | null;
   columns?: string[];
 }

@@ -1,40 +1,58 @@
 import { env } from './env';
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 
-let cachedToken: { accessToken: string; expiresAt: number } | null = null;
+// Create a singleton SES client for reuse
+const sesClient = new SESClient({
+  region: env.ses.region,
+  credentials: {
+    accessKeyId: env.ses.accessKeyId,
+    secretAccessKey: env.ses.secretAccessKey,
+  },
+});
 
-async function getAccessToken(): Promise<string> {
-  // Return cached token if still valid (with 5 min buffer)
-  if (cachedToken && Date.now() < cachedToken.expiresAt - 300000) {
-    return cachedToken.accessToken;
+/**
+ * Sends an email via AWS SES using the AWS SDK for JavaScript (v3).
+ * This replaces the previous Python-based implementation.
+ */
+export async function sendMailViaSES(options: GraphMailOptions): Promise<void> {
+  const source = env.ses.sourceEmail;
+  if (!source) {
+    throw new Error('AWS_SES_FROM_EMAIL is not set in environment variables.');
   }
 
-  const url = `https://login.microsoftonline.com/${env.azure.tenantId}/oauth2/v2.0/token`;
+  const senderName = env.ses.senderName;
+  const sourceAddr = senderName ? `${senderName} <${source}>` : source;
 
-  const body = new URLSearchParams({
-    client_id: env.azure.clientId,
-    client_secret: env.azure.clientSecret,
-    scope: 'https://graph.microsoft.com/.default',
-    grant_type: 'client_credentials',
+  const command = new SendEmailCommand({
+    Source: sourceAddr,
+    Destination: {
+      ToAddresses: [options.to],
+    },
+    Message: {
+      Subject: {
+        Data: options.subject,
+        Charset: 'UTF-8',
+      },
+      Body: {
+        Text: {
+          Data: options.html, // Use HTML as fallback plain text
+          Charset: 'UTF-8',
+        },
+        ...(options.html && {
+          Html: {
+            Data: options.html,
+            Charset: 'UTF-8',
+          },
+        }),
+      },
+    },
   });
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Failed to get Azure access token: ${err}`);
+  try {
+    await sesClient.send(command);
+  } catch (err: any) {
+    throw new Error(`SES sendMailViaSES failed: ${err.message}`);
   }
-
-  const data = (await res.json()) as { access_token: string; expires_in: number };
-  cachedToken = {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + data.expires_in * 1000,
-  };
-
-  return cachedToken.accessToken;
 }
 
 export interface GraphMailOptions {
@@ -42,46 +60,4 @@ export interface GraphMailOptions {
   subject: string;
   html: string;
   attachments?: { filename: string; contentBytes: string; contentType: string }[];
-}
-
-export async function sendMailViaGraph(options: GraphMailOptions): Promise<void> {
-  const token = await getAccessToken();
-
-  const message: any = {
-    subject: options.subject,
-    body: {
-      contentType: 'HTML',
-      content: options.html,
-    },
-    toRecipients: [
-      {
-        emailAddress: { address: options.to },
-      },
-    ],
-  };
-
-  if (options.attachments && options.attachments.length > 0) {
-    message.attachments = options.attachments.map((a) => ({
-      '@odata.type': '#microsoft.graph.fileAttachment',
-      name: a.filename,
-      contentType: a.contentType,
-      contentBytes: a.contentBytes,
-    }));
-  }
-
-  const url = `https://graph.microsoft.com/v1.0/users/${env.senderEmail}/sendMail`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ message, saveToSentItems: true }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Graph API sendMail failed: ${err}`);
-  }
 }

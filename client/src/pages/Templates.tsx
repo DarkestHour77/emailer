@@ -12,7 +12,7 @@ export default function Templates() {
   const fetchTemplates = async () => {
     try {
       const data = await getTemplates();
-      setTemplates(data);
+      setTemplates(Array.isArray(data) ? data : []);
     } catch {
       toast.error('Failed to load templates');
     }

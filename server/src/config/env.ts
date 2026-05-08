@@ -13,4 +13,16 @@ export const env = {
   },
   senderEmail: process.env.SENDER_EMAIL || 'noreply@emailer.dev',
   appUrl: process.env.APP_URL || `http://localhost:${process.env.PORT || '3001'}`,
+  emailRateLimit: {
+    intervalMs: parseInt(process.env.EMAIL_RATE_LIMIT_MS || '1000', 10),
+    maxPerMinute: parseInt(process.env.EMAIL_MAX_PER_MINUTE || '60', 10),
+    maxPerHour: parseInt(process.env.EMAIL_MAX_PER_HOUR || '3600', 10),
+  },
+  ses: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+    region: process.env.AWS_DEFAULT_REGION || 'ap-south-1',
+    sourceEmail: process.env.AWS_SES_FROM_EMAIL || '',
+    senderName: process.env.SES_SENDER_NAME || '',
+  },
 };

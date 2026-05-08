@@ -1,4 +1,4 @@
-import { sendMailViaGraph } from '../config/mailer';
+import { sendMailViaSES } from '../config/mailer';
 import { getContactsByIds, getContactsByIdsForList, getContactListById, detectEmailColumn, detectNameColumn } from '../data/contacts';
 import type { DynamicContact } from '../data/contacts';
 import {
@@ -9,6 +9,7 @@ import {
   type EmailRecord,
 } from '../data/emails';
 import { env } from '../config/env';
+import { waitForNextEmailSend } from '../utils/rateLimiter';
 
 interface SendEmailOptions {
   contactIds: number[];
@@ -90,6 +91,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
     const nameCol = detectNameColumn(columns);
 
     for (const contact of listContacts) {
+      // Wait for rate limit before sending each email
+      await waitForNextEmailSend();
+
       const vars = buildVarsFromDynamicContact(contact, emailCol, nameCol);
       let html = resolveTemplate(bodyHtml, vars);
 
@@ -111,7 +115,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
       html = injectTrackingPixel(html, trackingId);
 
       try {
-        await sendMailViaGraph({ to: contactEmail, subject: resolvedSubject, html });
+        await sendMailViaSES({ to: contactEmail, subject: resolvedSubject, html });
         sent++;
       } catch (err) {
         failed++;
@@ -123,6 +127,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
     const contacts = await getContactsByIds(contactIds);
 
     for (const contact of contacts) {
+      // Wait for rate limit before sending each email
+      await waitForNextEmailSend();
+
       let html = bodyHtml
         .replace(/\{\{username\}\}/g, contact.username)
         .replace(/\{\{email\}\}/g, contact.email);
@@ -148,7 +155,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ sent: numb
       html = injectTrackingPixel(html, trackingId);
 
       try {
-        await sendMailViaGraph({ to: contact.email, subject: resolvedSubject, html });
+        await sendMailViaSES({ to: contact.email, subject: resolvedSubject, html });
         sent++;
       } catch (err) {
         failed++;
@@ -197,6 +204,9 @@ async function sendScheduledEmail(record: EmailRecord): Promise<void> {
     templateId: record.template_id || undefined,
     listId: record.list_id || undefined,
   });
+
+  // Mark original record as sent so it won't be picked up again
+  await updateEmailStatus(record.id, 'sent');
 }
 
 let isProcessing = false;

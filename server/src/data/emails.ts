@@ -11,8 +11,8 @@ export interface EmailRecord {
   total_recipients: number;
   total_opens: number;
   total_clicks: number;
-  sent_at: string;
-  created_at: string;
+  sent_at: string | null;
+  created_at: string | null;
   scheduled_at: string | null;
   contact_ids: number[] | null;
   preview_text: string | null;
@@ -59,7 +59,7 @@ export async function createEmailRecord(data: {
     total_recipients: 0,
     total_opens: 0,
     total_clicks: 0,
-    sent_at: isScheduled ? '' : now,
+    sent_at: isScheduled ? null : now,
     created_at: now,
     scheduled_at: data.scheduled_at || null,
     contact_ids: data.contact_ids || null,
@@ -84,9 +84,9 @@ export async function addRecipient(
 ): Promise<string> {
   const trackingId = uuidv4();
   const recipient: RecipientTracking = {
-    trackingId,
+    trackingId: trackingId,
     contactId: data.contactId,
-    emailId,
+    emailId: emailId,
     email: data.email,
     name: data.name,
     opened_at: null,
