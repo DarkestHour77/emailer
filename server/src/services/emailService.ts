@@ -204,6 +204,9 @@ async function sendScheduledEmail(record: EmailRecord): Promise<void> {
     templateId: record.template_id || undefined,
     listId: record.list_id || undefined,
   });
+
+  // Mark original record as sent so it won't be picked up again
+  await updateEmailStatus(record.id, 'sent');
 }
 
 let isProcessing = false;
