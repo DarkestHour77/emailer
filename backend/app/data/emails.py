@@ -67,7 +67,8 @@ class EmailsService:
         
         # Add to scheduled list if applicable
         if is_scheduled:
-            scheduled_time = datetime.fromisoformat(data['scheduled_at']).timestamp()
+            # Store in milliseconds to match the TypeScript server's Date.now() queries
+            scheduled_time = datetime.fromisoformat(data['scheduled_at']).timestamp() * 1000
             await redis_client.zadd(SCHEDULED_KEY, {email_record.id: scheduled_time})
         
         return email_record
