@@ -78,7 +78,7 @@ export default function ContactTable({ contacts, selectedIds, onSelectionChange 
       }),
       columnHelper.accessor('email', {
         header: 'EMAIL',
-        cell: (info) => <span className="text-gray-500">{info.getValue()}</span>,
+        cell: (info) => <span className="text-gray-500">{info.getValue() || '\u2014'}</span>,
       }),
       columnHelper.accessor('subscribed', {
         header: 'SUBSCRIBED',

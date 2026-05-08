@@ -43,19 +43,19 @@ export const deleteContactList = (listId: string) =>
 
 // Templates
 export const getTemplates = () =>
-  api.get<Template[]>('/templates').then((r) => r.data);
+  api.get<{ data: Template[] }>('/templates/').then((r) => r.data.data);
 
 export const getTemplate = (id: string) =>
-  api.get<Template>(`/templates/${id}`).then((r) => r.data);
+  api.get<Template>(`/templates/${id}/`).then((r) => r.data);
 
 export const createTemplate = (data: Partial<Template>) =>
-  api.post<Template>('/templates', data).then((r) => r.data);
+  api.post<Template>('/templates/', data).then((r) => r.data);
 
 export const updateTemplate = (id: string, data: Partial<Template>) =>
-  api.put<Template>(`/templates/${id}`, data).then((r) => r.data);
+  api.put<Template>(`/templates/${id}/`, data).then((r) => r.data);
 
 export const deleteTemplate = (id: string) =>
-  api.delete(`/templates/${id}`);
+  api.delete(`/templates/${id}/`);
 
 // Emails
 export const sendEmail = (data: {
@@ -65,16 +65,23 @@ export const sendEmail = (data: {
   templateId?: string;
   previewText?: string;
   listId?: string;
-}) => api.post('/emails/send', data).then((r) => r.data);
+}) => api.post('/emails/send', {
+  contact_ids: data.contactIds,
+  subject: data.subject,
+  body_html: data.bodyHtml,
+  template_id: data.templateId,
+  preview_text: data.previewText,
+  list_id: data.listId,
+}).then((r) => r.data);
 
 export const previewEmail = (bodyHtml: string, contactId?: number, listId?: string) =>
-  api.post<{ html: string }>('/emails/preview', { bodyHtml, contactId, listId }).then((r) => r.data);
+  api.post<{ html: string }>('/emails/preview', { body_html: bodyHtml, contact_id: contactId, list_id: listId }).then((r) => r.data);
 
 export const getEmails = () =>
-  api.get<Email[]>('/emails').then((r) => r.data);
+  api.get<{ data: Email[] }>('/emails/').then((r) => r.data.data);
 
 export const getEmailDetail = (id: string) =>
-  api.get<EmailDetail>(`/emails/${id}`).then((r) => r.data);
+  api.get<EmailDetail>(`/emails/${id}/`).then((r) => r.data);
 
 export const scheduleEmail = (data: {
   contactIds: number[];
@@ -84,13 +91,13 @@ export const scheduleEmail = (data: {
   previewText?: string;
   scheduledAt: string;
   listId?: string;
-}) => api.post<{ emailId: string; scheduledAt: string }>('/emails/schedule', data).then((r) => r.data);
+}) => api.post<{ emailId: string; scheduledAt: string }>('/emails/schedule/', data).then((r) => r.data);
 
 export const getScheduledEmails = () =>
-  api.get<Email[]>('/emails/scheduled').then((r) => r.data);
+  api.get<{ data: Email[] }>('/emails/scheduled/').then((r) => r.data.data);
 
 export const cancelScheduledEmail = (id: string) =>
-  api.post<{ success: boolean }>(`/emails/${id}/cancel`).then((r) => r.data);
+  api.post<{ success: boolean }>(`/emails/${id}/cancel/`).then((r) => r.data);
 
 // Uploads
 export const uploadImage = (file: File): Promise<{ url: string }> => {

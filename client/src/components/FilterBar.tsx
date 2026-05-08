@@ -48,7 +48,7 @@ export default function FilterBar({
         onChange={(e) => onSubscribedChange(e.target.value)}
       >
         <option value="">All Subscribed</option>
-        {subscribedOptions.map((v) => (
+        {(subscribedOptions ?? []).map((v) => (
           <option key={v} value={v}>
             Subscribed: {v}
           </option>
@@ -60,7 +60,7 @@ export default function FilterBar({
         onChange={(e) => onPlanChange(e.target.value)}
       >
         <option value="">All Plans</option>
-        {planOptions.map((v) => (
+        {(planOptions ?? []).map((v) => (
           <option key={v} value={v}>
             {v}
           </option>

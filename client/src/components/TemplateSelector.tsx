@@ -13,12 +13,12 @@ export default function TemplateSelector({ templates, selectedId, onSelect }: Pr
       value={selectedId ?? ''}
       onChange={(e) => {
         const id = e.target.value || null;
-        const template = id ? templates.find((t) => t.id === id) ?? null : null;
+        const template = id ? (Array.isArray(templates) ? templates : []).find((t) => t.id === id) ?? null : null;
         onSelect(template);
       }}
     >
       <option value="">-- Select a template --</option>
-      {templates.map((t) => (
+      {(Array.isArray(templates) ? templates : []).map((t) => (
         <option key={t.id} value={t.id}>
           {t.name}
         </option>
